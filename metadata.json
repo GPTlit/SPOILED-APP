@@ -1,0 +1,6 @@
+{
+  "name": "Spoiled Store",
+  "description": "A modern alternative app store to discover, install, review, and publish mobile and web apps.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

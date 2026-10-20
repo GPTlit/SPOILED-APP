@@ -1,0 +1,133 @@
+{
+  "entities": {
+    "App": {
+      "title": "App",
+      "description": "An application or game published on Spoiled Store",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "slug": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "developer": { "type": "string" },
+        "rating": { "type": "number" },
+        "reviewsCount": { "type": "integer" },
+        "downloadsCount": { "type": "integer" },
+        "sizeBytes": { "type": "integer" },
+        "sizeFormatted": { "type": "string" },
+        "version": { "type": "string" },
+        "description": { "type": "string" },
+        "tagline": { "type": "string" },
+        "iconPath": { "type": "string" },
+        "apkFilePath": { "type": "string" },
+        "cloudApkUrl": { "type": "string" },
+        "bundleId": { "type": "string" },
+        "price": { "type": "number" },
+        "isSubscription": { "type": "boolean" },
+        "isTopApp": { "type": "boolean" },
+        "isTopGame": { "type": "boolean" },
+        "isNewNoteworthy": { "type": "boolean" },
+        "isFeatured": { "type": "boolean" },
+        "isUploadedByAdmin": { "type": "boolean" },
+        "uploaderUid": { "type": "string" },
+        "releaseDate": { "type": "string" },
+        "changelog": { "type": "string" },
+        "overview": { "type": "string" },
+        "speedScore": { "type": "string" },
+        "securityStatus": { "type": "string" },
+        "downloadSource": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "category", "developer", "uploaderUid"]
+    },
+    "News": {
+      "title": "News",
+      "description": "Store editorial news or announcement",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "summary": { "type": "string" },
+        "content": { "type": "string" },
+        "author": { "type": "string" },
+        "date": { "type": "string" },
+        "category": { "type": "string" },
+        "readTime": { "type": "string" },
+        "imagePath": { "type": "string" },
+        "authorUid": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "content", "author", "authorUid"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "System or admin broadcast notification",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "isBroadcast": { "type": "boolean" },
+        "authorUid": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "message", "authorUid"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "User review or comment on an app",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "appId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "comment": { "type": "string" },
+        "rating": { "type": "integer" },
+        "date": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "appId", "userId", "comment", "rating"]
+    },
+    "User": {
+      "title": "User",
+      "description": "User profile with purchase and installed metadata",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "isAdmin": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    }
+  },
+  "firestore": {
+    "/apps/{appId}": {
+      "schema": "App",
+      "description": "All public store applications and games"
+    },
+    "/news/{newsId}": {
+      "schema": "News",
+      "description": "Store editorial articles and release notes"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "Store alerts and broadcast notifications"
+    },
+    "/comments/{commentId}": {
+      "schema": "Comment",
+      "description": "Public reviews and comments on apps"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User account document"
+    }
+  }
+}
