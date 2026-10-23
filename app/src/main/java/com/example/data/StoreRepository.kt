@@ -35,14 +35,22 @@ import java.util.UUID
 
 class StoreRepository(
     private val context: Context,
-    val firestore: FirebaseFirestore
+    val firestore: FirebaseFirestore? = null
 ) {
     // Secondary constructor resolving named firestore_database_id from resources
     constructor(context: Context) : this(
         context = context.applicationContext,
-        firestore = FirebaseFirestore.getInstance(
-            context.applicationContext.getString(R.string.firestore_database_id)
-        )
+        firestore = try {
+            val dbId = context.applicationContext.getString(R.string.firestore_database_id)
+            if (dbId.isNotBlank()) {
+                FirebaseFirestore.getInstance(dbId)
+            } else {
+                FirebaseFirestore.getInstance()
+            }
+        } catch (e: Throwable) {
+            Log.w("StoreRepository", "Firebase Firestore unavailable (${e.message}); using local/offline storage")
+            null
+        }
     )
 
     private val scope = CoroutineScope(Dispatchers.IO)
@@ -54,6 +62,7 @@ class StoreRepository(
         private const val TAG = "StoreRepository"
         const val PRIMARY_ADMIN_EMAIL = "salemmoustapha15@gmail.com"
         const val BACKUP_ADMIN_EMAIL = "salemmoustapha19@gmail.com"
+        const val USER_ADMIN_EMAIL = "salemmoustapha18@gmail.com"
         private const val APPS_FILE = "spoiled_real_apps.json"
         private const val NEWS_FILE = "spoiled_real_news.json"
         private const val COMMENTS_FILE = "spoiled_real_comments.json"
@@ -100,11 +109,17 @@ class StoreRepository(
     private val _purchasedAppIds = MutableStateFlow(setOf<String>())
     val purchasedAppIds: StateFlow<Set<String>> = _purchasedAppIds.asStateFlow()
 
+    private val sessionPrefs = context.getSharedPreferences("spoiled_store_user_session", Context.MODE_PRIVATE)
+    private val bannerPrefs = context.getSharedPreferences("spoiled_store_banner_prefs", Context.MODE_PRIVATE)
+
     private val _wishlistAppIds = MutableStateFlow(setOf<String>())
     val wishlistAppIds: StateFlow<Set<String>> = _wishlistAppIds.asStateFlow()
 
-    private val _userProfile = MutableStateFlow(UserProfile(isSignedIn = false))
+    private val _userProfile = MutableStateFlow(loadInitialUserSession())
     val userProfile: StateFlow<UserProfile> = _userProfile.asStateFlow()
+
+    private val _featuredBanner = MutableStateFlow(loadFeaturedBanner())
+    val featuredBanner: StateFlow<FeaturedBannerConfig> = _featuredBanner.asStateFlow()
 
     private var appsListener: ListenerRegistration? = null
     private var newsListener: ListenerRegistration? = null
@@ -122,12 +137,10 @@ class StoreRepository(
                     if (user != null) {
                         syncUserSession(user)
                     } else {
-                        // Check if local manual session exists or reset
-                        val saved = loadUserSessionFromFile()
-                        if (saved != null && saved.isSignedIn && saved.authProvider != "Google") {
-                            _userProfile.value = saved
-                        } else {
-                            _userProfile.value = UserProfile(isSignedIn = false)
+                        // CRITICAL: NEVER wipe the local login session when Firebase emits null on launch or when offline.
+                        // We preserve the user session permanently until the user explicitly taps 'Sign Out'.
+                        if (!_userProfile.value.isSignedIn) {
+                            loadUserSession()
                         }
                     }
                 }
@@ -151,12 +164,16 @@ class StoreRepository(
         } catch (e: Throwable) {
             Log.w(TAG, "Firestore listeners initialization deferred: ${e.message}")
         }
+
+        // 5. Sync store catalog from Supabase Database for all users
+        syncAppsFromSupabase()
     }
 
     private fun connectFirestoreRealtimeListeners() {
+        val fs = firestore ?: return
         // Apps Collection Real-time listener
         appsListener?.remove()
-        appsListener = firestore.collection("apps").addSnapshotListener { snapshot, error ->
+        appsListener = fs.collection("apps").addSnapshotListener { snapshot, error ->
             if (error != null) {
                 Log.w(TAG, "Apps listener error: ${error.message}")
                 return@addSnapshotListener
@@ -245,7 +262,7 @@ class StoreRepository(
                                     "createdAt" to FieldValue.serverTimestamp(),
                                     "updatedAt" to FieldValue.serverTimestamp()
                                 )
-                                firestore.collection("apps").document(app.id).set(map)
+                                fs.collection("apps").document(app.id).set(map)
                             } catch (_: Exception) {}
                         }
                     }
@@ -255,7 +272,7 @@ class StoreRepository(
 
         // News Collection Real-time listener
         newsListener?.remove()
-        newsListener = firestore.collection("news").addSnapshotListener { snapshot, error ->
+        newsListener = fs.collection("news").addSnapshotListener { snapshot, error ->
             if (error != null) {
                 Log.w(TAG, "News listener error: ${error.message}")
                 return@addSnapshotListener
@@ -287,7 +304,7 @@ class StoreRepository(
 
         // Notifications Real-time listener
         notifsListener?.remove()
-        notifsListener = firestore.collection("notifications").addSnapshotListener { snapshot, error ->
+        notifsListener = fs.collection("notifications").addSnapshotListener { snapshot, error ->
             if (error != null) {
                 Log.w(TAG, "Notifications listener error: ${error.message}")
                 return@addSnapshotListener
@@ -316,7 +333,7 @@ class StoreRepository(
 
         // Comments Real-time listener
         commentsListener?.remove()
-        commentsListener = firestore.collection("comments").addSnapshotListener { snapshot, error ->
+        commentsListener = fs.collection("comments").addSnapshotListener { snapshot, error ->
             if (error != null) {
                 Log.w(TAG, "Comments listener error: ${error.message}")
                 return@addSnapshotListener
@@ -369,7 +386,7 @@ class StoreRepository(
                     "isAdmin" to isAdmin,
                     "updatedAt" to FieldValue.serverTimestamp()
                 )
-                firestore.collection("users").document(user.uid).set(userDoc)
+                firestore?.collection("users")?.document(user.uid)?.set(userDoc)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed syncing user to Firestore: ${e.message}")
             }
@@ -378,7 +395,9 @@ class StoreRepository(
 
     fun isUserAdmin(email: String): Boolean {
         val normalized = email.trim().lowercase()
-        return normalized == PRIMARY_ADMIN_EMAIL.lowercase() || normalized == BACKUP_ADMIN_EMAIL.lowercase()
+        return normalized == PRIMARY_ADMIN_EMAIL.lowercase() ||
+                normalized == BACKUP_ADMIN_EMAIL.lowercase() ||
+                normalized == USER_ADMIN_EMAIL.lowercase()
     }
 
     fun getAdminOrFallbackEmail(): String {
@@ -410,6 +429,7 @@ class StoreRepository(
 
     fun signOut() {
         googleAuthManager.signOut()
+        sessionPrefs.edit().clear().apply()
         val profile = UserProfile(isSignedIn = false, email = "", username = "", isAdmin = false)
         _userProfile.value = profile
         saveUserSession(profile)
@@ -484,8 +504,49 @@ class StoreRepository(
         )
     }
 
+    suspend fun uploadApkToSupabase(uri: Uri, originalName: String): Result<Pair<String, Long>> {
+        return supabaseManager.uploadApkFromUri(uri, originalName)
+    }
+
     suspend fun uploadApkToSupabase(file: File, customName: String? = null): Result<String> {
         return supabaseManager.uploadApkFile(file, customName)
+    }
+
+    suspend fun uploadApkFileToSupabase(file: File, customName: String? = null): Result<Pair<String, Long>> {
+        val result = supabaseManager.uploadApkFile(file, customName)
+        return if (result.isSuccess) {
+            Result.success(Pair(result.getOrThrow(), file.length()))
+        } else {
+            Result.failure(result.exceptionOrNull() ?: Exception("Failed to upload APK"))
+        }
+    }
+
+    /**
+     * Synchronizes app catalog directly from Supabase PostgreSQL database.
+     * All users receive all apps published by the administrator.
+     */
+    fun syncAppsFromSupabase() {
+        scope.launch {
+            try {
+                val result = supabaseManager.fetchAppsFromDatabase()
+                if (result.isSuccess) {
+                    val remoteApps = result.getOrNull().orEmpty()
+                    if (remoteApps.isNotEmpty()) {
+                        _apps.update { current ->
+                            val map = current.associateBy { it.slug }.toMutableMap()
+                            remoteApps.forEach { cloudApp ->
+                                map[cloudApp.slug] = cloudApp
+                            }
+                            map.values.toList()
+                        }
+                        saveAppsToDisk(_apps.value)
+                        Log.d(TAG, "Successfully synced ${remoteApps.size} apps from Supabase Database!")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Supabase apps sync skipped/failed: ${e.message}")
+            }
+        }
     }
 
     fun createSampleApkOnDisk(appName: String): Pair<String, Long> {
@@ -567,7 +628,7 @@ class StoreRepository(
         saveAppsToDisk(_apps.value)
 
         // Upload to Firestore
-        val currentUid = FirebaseAuth.getInstance().currentUser?.uid ?: "admin-${UUID.randomUUID()}"
+        val currentUid = googleAuthManager.currentUser?.uid ?: "admin-${UUID.randomUUID()}"
         scope.launch {
             try {
                 val appMap = mapOf(
@@ -603,16 +664,30 @@ class StoreRepository(
                     "createdAt" to FieldValue.serverTimestamp(),
                     "updatedAt" to FieldValue.serverTimestamp()
                 )
-                firestore.collection("apps").document(appId)
-                    .set(appMap)
-                    .addOnSuccessListener {
+                firestore?.collection("apps")?.document(appId)
+                    ?.set(appMap)
+                    ?.addOnSuccessListener {
                         Log.d(TAG, "App $appId published successfully to cloud Firestore!")
                     }
-                    .addOnFailureListener { err ->
+                    ?.addOnFailureListener { err ->
                         Log.e(TAG, "Firestore write error for $appId: ${err.message}", err)
                     }
             } catch (e: Exception) {
                 Log.e(TAG, "Error saving app to Firestore", e)
+            }
+        }
+
+        // Upload to Supabase PostgreSQL database so all store users see the app
+        scope.launch {
+            try {
+                val supabaseResult = supabaseManager.insertAppToDatabase(newApp, currentUid)
+                if (supabaseResult.isSuccess) {
+                    Log.d(TAG, "App '${newApp.name}' published to Supabase database successfully!")
+                } else {
+                    Log.w(TAG, "Supabase database insert response: ${supabaseResult.exceptionOrNull()?.message}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed inserting app to Supabase database", e)
             }
         }
 
@@ -679,7 +754,7 @@ class StoreRepository(
         _newsList.update { listOf(newItem) + it }
         saveNewsToDisk(_newsList.value)
 
-        val currentUid = FirebaseAuth.getInstance().currentUser?.uid ?: "admin"
+        val currentUid = googleAuthManager.currentUser?.uid ?: "admin"
         scope.launch {
             try {
                 val map = mapOf(
@@ -694,7 +769,7 @@ class StoreRepository(
                     "authorUid" to currentUid,
                     "createdAt" to FieldValue.serverTimestamp()
                 )
-                firestore.collection("news").document(newsId).set(map)
+                firestore?.collection("news")?.document(newsId)?.set(map)
             } catch (e: Exception) {
                 Log.e(TAG, "Error saving news to Firestore", e)
             }
@@ -714,7 +789,7 @@ class StoreRepository(
         _notifications.update { listOf(notif) + it }
         saveNotificationsToDisk(_notifications.value)
 
-        val currentUid = FirebaseAuth.getInstance().currentUser?.uid ?: "admin"
+        val currentUid = googleAuthManager.currentUser?.uid ?: "admin"
         scope.launch {
             try {
                 val map = mapOf(
@@ -726,7 +801,7 @@ class StoreRepository(
                     "authorUid" to currentUid,
                     "createdAt" to FieldValue.serverTimestamp()
                 )
-                firestore.collection("notifications").document(notifId).set(map)
+                firestore?.collection("notifications")?.document(notifId)?.set(map)
             } catch (e: Exception) {
                 Log.e(TAG, "Error saving notification to Firestore", e)
             }
@@ -735,13 +810,17 @@ class StoreRepository(
     }
 
     fun deleteApp(appId: String) {
+        val targetApp = _apps.value.find { it.id == appId }
         _apps.update { list -> list.filterNot { it.id == appId } }
         saveAppsToDisk(_apps.value)
         scope.launch {
             try {
-                firestore.collection("apps").document(appId).delete()
+                if (targetApp != null) {
+                    supabaseManager.deleteAppFromDatabase(targetApp.slug)
+                }
+                firestore?.collection("apps")?.document(appId)?.delete()
             } catch (e: Exception) {
-                Log.e(TAG, "Error deleting app from Firestore", e)
+                Log.e(TAG, "Error deleting app", e)
             }
         }
     }
@@ -751,7 +830,7 @@ class StoreRepository(
         saveNewsToDisk(_newsList.value)
         scope.launch {
             try {
-                firestore.collection("news").document(newsId).delete()
+                firestore?.collection("news")?.document(newsId)?.delete()
             } catch (e: Exception) {
                 Log.e(TAG, "Error deleting news from Firestore", e)
             }
@@ -763,7 +842,7 @@ class StoreRepository(
         saveNotificationsToDisk(_notifications.value)
         scope.launch {
             try {
-                firestore.collection("notifications").document(notifId).delete()
+                firestore?.collection("notifications")?.document(notifId)?.delete()
             } catch (e: Exception) {
                 Log.e(TAG, "Error deleting notification from Firestore", e)
             }
@@ -868,7 +947,7 @@ class StoreRepository(
         saveAppsToDisk(_apps.value)
 
         // Save to Firestore
-        val currentUid = FirebaseAuth.getInstance().currentUser?.uid ?: "user"
+        val currentUid = googleAuthManager.currentUser?.uid ?: "user"
         scope.launch {
             try {
                 val map = mapOf(
@@ -882,7 +961,7 @@ class StoreRepository(
                     "date" to "Just now",
                     "createdAt" to FieldValue.serverTimestamp()
                 )
-                firestore.collection("comments").document(commentId).set(map)
+                firestore?.collection("comments")?.document(commentId)?.set(map)
             } catch (e: Exception) {
                 Log.e(TAG, "Error saving comment to Firestore", e)
             }
@@ -1159,6 +1238,14 @@ class StoreRepository(
     }
 
     private fun saveUserSession(profile: UserProfile) {
+        sessionPrefs.edit()
+            .putBoolean("is_signed_in", profile.isSignedIn)
+            .putString("email", profile.email)
+            .putString("username", profile.username)
+            .putString("auth_provider", profile.authProvider)
+            .putBoolean("is_admin", profile.isAdmin)
+            .apply()
+
         scope.launch {
             try {
                 val obj = JSONObject().apply {
@@ -1171,6 +1258,49 @@ class StoreRepository(
                 File(context.filesDir, USER_FILE).writeText(obj.toString())
             } catch (_: Exception) {}
         }
+    }
+
+    private fun loadInitialUserSession(): UserProfile {
+        val isSignedIn = sessionPrefs.getBoolean("is_signed_in", false)
+        if (isSignedIn) {
+            val email = sessionPrefs.getString("email", "") ?: ""
+            val username = sessionPrefs.getString("username", "") ?: ""
+            val authProvider = sessionPrefs.getString("auth_provider", "Email") ?: "Email"
+            val isAdmin = isUserAdmin(email)
+            return UserProfile(
+                isSignedIn = true,
+                email = email,
+                username = username,
+                authProvider = authProvider,
+                isAdmin = isAdmin
+            )
+        }
+        val file = File(context.filesDir, USER_FILE)
+        if (file.exists()) {
+            try {
+                val obj = JSONObject(file.readText())
+                if (obj.optBoolean("isSignedIn")) {
+                    val email = obj.optString("email")
+                    val isAdmin = isUserAdmin(email)
+                    val profile = UserProfile(
+                        isSignedIn = true,
+                        email = email,
+                        username = obj.optString("username"),
+                        authProvider = obj.optString("authProvider", "Email"),
+                        isAdmin = isAdmin
+                    )
+                    sessionPrefs.edit()
+                        .putBoolean("is_signed_in", true)
+                        .putString("email", email)
+                        .putString("username", profile.username)
+                        .putString("auth_provider", profile.authProvider)
+                        .putBoolean("is_admin", isAdmin)
+                        .apply()
+                    return profile
+                }
+            } catch (_: Exception) {}
+        }
+        return UserProfile(isSignedIn = false)
     }
 
     private fun loadUserSessionFromFile(): UserProfile? {
@@ -1193,10 +1323,51 @@ class StoreRepository(
     }
 
     private fun loadUserSession() {
-        val saved = loadUserSessionFromFile()
-        if (saved != null) {
-            _userProfile.value = saved
+        _userProfile.value = loadInitialUserSession()
+    }
+
+    private fun loadFeaturedBanner(): FeaturedBannerConfig {
+        return FeaturedBannerConfig(
+            title = bannerPrefs.getString("title", "Real APK Downloads\n& Cloud Storage") ?: "Real APK Downloads\n& Cloud Storage",
+            tagline = bannerPrefs.getString("tagline", "FEATURED ECOSYSTEM") ?: "FEATURED ECOSYSTEM",
+            description = bannerPrefs.getString("description", "Explore Catalog") ?: "Explore Catalog",
+            imageUrl = bannerPrefs.getString("image_url", "") ?: ""
+        )
+    }
+
+    fun updateFeaturedBanner(title: String, tagline: String, imageUrl: String) {
+        val newBanner = FeaturedBannerConfig(
+            title = title.ifBlank { "Real APK Downloads\n& Cloud Storage" },
+            tagline = tagline.ifBlank { "FEATURED ECOSYSTEM" },
+            description = "Explore Catalog",
+            imageUrl = imageUrl.trim()
+        )
+        bannerPrefs.edit()
+            .putString("title", newBanner.title)
+            .putString("tagline", newBanner.tagline)
+            .putString("description", newBanner.description)
+            .putString("image_url", newBanner.imageUrl)
+            .apply()
+        _featuredBanner.value = newBanner
+
+        scope.launch {
+            try {
+                firestore?.collection("config")?.document("featured_banner")?.set(
+                    mapOf(
+                        "title" to newBanner.title,
+                        "tagline" to newBanner.tagline,
+                        "description" to newBanner.description,
+                        "imageUrl" to newBanner.imageUrl,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                )
+            } catch (_: Exception) {}
         }
+    }
+
+    fun deleteDemoCatalogApps() {
+        _apps.update { list -> list.filter { it.isUploadedByAdmin } }
+        saveAppsToDisk(_apps.value)
     }
 
     fun getInitialOnlineStoreCatalog(): List<AppItem> {

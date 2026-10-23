@@ -2,11 +2,20 @@ package com.example.ui.components
 
 import android.net.Uri
 import android.provider.OpenableColumns
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -92,6 +101,8 @@ fun AdminUploadAppSheet(
     onCopyImageFromUri: (Uri, Boolean) -> String?,
     onCreateSampleApk: (String) -> Pair<String, Long>,
     onUploadImageToCloud: ((Uri, Boolean, (String?) -> Unit) -> Unit)? = null,
+    onUploadApkToCloud: ((Uri, String, (String?, Long) -> Unit) -> Unit)? = null,
+    onUploadSampleApkToCloud: ((String, (String?, Long) -> Unit) -> Unit)? = null,
     supabaseConfig: com.example.data.SupabaseConfig? = null,
     onSaveSupabaseConfig: ((String, String) -> Unit)? = null,
     onUpload: (
@@ -114,11 +125,12 @@ fun AdminUploadAppSheet(
         isFeatured: Boolean,
         overview: String,
         speedScore: String,
-        securityStatus: String
+        securityStatus: String,
+        cloudApkUrl: String
     ) -> Unit
 ) {
     val context = LocalContext.current
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    BackHandler { onDismiss() }
 
     var name by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("Productivity") }
@@ -171,10 +183,31 @@ fun AdminUploadAppSheet(
                 }
             }
             apkFileName = fileName
-            val result = onCopyApkFromUri(uri, fileName)
-            if (result != null) {
-                apkPath = result.first
-                apkSizeBytes = result.second
+
+            if (onUploadApkToCloud != null) {
+                isUploadingMedia = true
+                uploadStatusMessage = "Uploading APK to Supabase Storage ($fileName)..."
+                onUploadApkToCloud(uri, fileName) { uploadedUrl, sizeBytes ->
+                    isUploadingMedia = false
+                    uploadStatusMessage = ""
+                    if (!uploadedUrl.isNullOrBlank()) {
+                        apkPath = uploadedUrl
+                        cloudApkUrlInput = uploadedUrl
+                        apkSizeBytes = sizeBytes
+                    } else {
+                        val result = onCopyApkFromUri(uri, fileName)
+                        if (result != null) {
+                            apkPath = result.first
+                            apkSizeBytes = result.second
+                        }
+                    }
+                }
+            } else {
+                val result = onCopyApkFromUri(uri, fileName)
+                if (result != null) {
+                    apkPath = result.first
+                    apkSizeBytes = result.second
+                }
             }
         }
     }
@@ -227,44 +260,51 @@ fun AdminUploadAppSheet(
         }
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = SurfaceLight
+    Dialog(
+        onDismissRequest = { /* No-op: full page */ },
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .verticalScroll(rememberScrollState())
-                .testTag("admin_upload_bottom_sheet")
-        ) {
-            // Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Column {
+                            Text(
+                                text = "Upload Real App to Store",
+                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "Upload actual APK file, screenshots, and metadata",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary
+                            )
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onDismiss, modifier = Modifier.testTag("admin_upload_back_button")) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = TextPrimary
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+                    modifier = Modifier.statusBarsPadding()
+                )
+            },
+            containerColor = MaterialTheme.colorScheme.background
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(horizontal = 20.dp)
+                    .verticalScroll(rememberScrollState())
+                    .navigationBarsPadding()
+                    .testTag("admin_upload_full_page")
             ) {
-                Column {
-                    Text(
-                        text = "Upload Real App to Store",
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = (-0.4).sp
-                        ),
-                        color = TextPrimary
-                    )
-                    Text(
-                        text = "Upload actual APK file, screenshots, and metadata",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary
-                    )
-                }
-
-                IconButton(onClick = onDismiss) {
-                    Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = TextSecondary)
-                }
-            }
 
             Spacer(modifier = Modifier.height(14.dp))
 
@@ -427,10 +467,25 @@ fun AdminUploadAppSheet(
                         OutlinedButton(
                             onClick = {
                                 val testName = name.ifBlank { "SampleApp" }
-                                val result = onCreateSampleApk(testName)
-                                apkPath = result.first
-                                apkSizeBytes = result.second
-                                apkFileName = "${testName.lowercase()}_release.apk"
+                                if (onUploadSampleApkToCloud != null) {
+                                    isUploadingMedia = true
+                                    uploadStatusMessage = "Creating & uploading sample to Supabase..."
+                                    onUploadSampleApkToCloud(testName) { uploadedUrl, size ->
+                                        isUploadingMedia = false
+                                        uploadStatusMessage = ""
+                                        if (!uploadedUrl.isNullOrBlank()) {
+                                            apkPath = uploadedUrl
+                                            cloudApkUrlInput = uploadedUrl
+                                            apkSizeBytes = size
+                                            apkFileName = "${testName.lowercase()}_release.apk"
+                                        }
+                                    }
+                                } else {
+                                    val result = onCreateSampleApk(testName)
+                                    apkPath = result.first
+                                    apkSizeBytes = result.second
+                                    apkFileName = "${testName.lowercase()}_release.apk"
+                                }
                             },
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.testTag("generate_test_apk_btn")
@@ -805,6 +860,13 @@ fun AdminUploadAppSheet(
                 onClick = {
                     if (name.isNotBlank() && apkPath.isNotBlank()) {
                         val parsedPrice = priceText.toDoubleOrNull() ?: 0.0
+                        val resolvedCloudUrl = cloudApkUrlInput.trim().ifBlank {
+                            if (apkPath.startsWith("http://", ignoreCase = true) || apkPath.startsWith("https://", ignoreCase = true)) {
+                                apkPath
+                            } else {
+                                ""
+                            }
+                        }
                         onUpload(
                             name.trim(),
                             category.trim(),
@@ -825,7 +887,8 @@ fun AdminUploadAppSheet(
                             isFeatured,
                             overviewText,
                             speedScoreText,
-                            securityStatusText
+                            securityStatusText,
+                            resolvedCloudUrl
                         )
                     }
                 },
@@ -1045,6 +1108,7 @@ fun AdminUploadAppSheet(
             }
         )
     }
+        }
     }
 }
 }

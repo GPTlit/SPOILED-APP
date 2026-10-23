@@ -1,36 +1,39 @@
 package com.example.ui.theme
 
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-// Spoiled Store Official Apple-restrained Design Tokens
-val BackgroundLight = Color(0xFFF5F6F8)
-val SurfaceLight = Color(0xFFFFFFFF)
-val SurfaceSecondary = Color(0xFFF8F9FB)
-val SurfaceTertiary = Color(0xFFF0F2F5)
+// Spoiled Store Official Design Tokens (Theme-aware for Dark Mode & High Contrast Light Mode)
+val BackgroundLight: Color @Composable get() = MaterialTheme.colorScheme.background
+val SurfaceLight: Color @Composable get() = MaterialTheme.colorScheme.surface
+val SurfaceSecondary: Color @Composable get() = MaterialTheme.colorScheme.surfaceVariant
+val SurfaceTertiary: Color @Composable get() = if (LocalHighContrastMode.current) Color(0xFFE2E8F0) else Color(0xFF1E283A)
 
-val TextPrimary = Color(0xFF111318)
-val TextSecondary = Color(0xFF626B7A)
-val TextTertiary = Color(0xFF8A93A2)
-val TextDisabled = Color(0xFFB4BAC4)
+val TextPrimary: Color @Composable get() = MaterialTheme.colorScheme.onBackground
+val TextSecondary: Color @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
+val TextTertiary: Color @Composable get() = if (LocalHighContrastMode.current) Color(0xFF1E293B) else Color(0xFF94A3B8)
+val TextDisabled: Color @Composable get() = if (LocalHighContrastMode.current) Color(0xFF64748B) else Color(0xFF475569)
 
-val AppleBlue = Color(0xFF007AFF)
+val AppleBlue: Color @Composable get() = MaterialTheme.colorScheme.primary
 val AppleBlueHover = Color(0xFF0066D6)
-val AppleBlueSoft = Color(0xFFEAF3FF)
-val AppleBlueBorder = Color(0xFFD4E5FF)
+val AppleBlueSoft: Color @Composable get() = if (LocalHighContrastMode.current) Color(0xFFD4E5FF) else Color(0xFF263248)
+val AppleBlueBorder: Color @Composable get() = if (LocalHighContrastMode.current) Color(0xFF000000) else Color(0xFF3B4861)
 
-val BorderLight = Color(0xFFE6E9EE)
-val BorderStrong = Color(0xFFD9DEE6)
+val BorderLight: Color @Composable get() = MaterialTheme.colorScheme.outline
+val BorderStrong: Color @Composable get() = if (LocalHighContrastMode.current) Color(0xFF000000) else Color(0xFF334155)
 
-val SuccessGreen = Color(0xFF248A4B)
-val WarningGold = Color(0xFFA56A12)
-val ErrorRed = Color(0xFFD93036)
+val SuccessGreen = Color(0xFF10B981)
+val WarningGold = Color(0xFFF59E0B)
+val ErrorRed = Color(0xFFEF4444)
 
 // Featured Card Slate/Charcoal Gradient
-val CharcoalCardStart = Color(0xFF303944)
-val CharcoalCardMid = Color(0xFF414B59)
-val CharcoalCardEnd = Color(0xFF202833)
+val CharcoalCardStart = Color(0xFF1E293B)
+val CharcoalCardMid = Color(0xFF334155)
+val CharcoalCardEnd = Color(0xFF0F172A)
 
-// Liquid Glass Translucent Accents
-val GlassWhite = Color(0xB8FFFFFF) // rgba(255, 255, 255, 0.72)
-val GlassWhiteStrong = Color(0xDCFFFFFF) // rgba(255, 255, 255, 0.86)
-val GlassBorder = Color(0xD1FFFFFF) // rgba(255, 255, 255, 0.82)
+// Translucent & Glass Accents
+val GlassWhite: Color @Composable get() = if (LocalHighContrastMode.current) Color(0xFFFFFFFF) else Color(0xDE1A2234)
+val GlassWhiteStrong: Color @Composable get() = if (LocalHighContrastMode.current) Color(0xFFFFFFFF) else Color(0xF01A2234)
+val GlassBorder: Color @Composable get() = if (LocalHighContrastMode.current) Color(0xFF000000) else Color(0xFF2A364F)
+

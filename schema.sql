@@ -25,7 +25,7 @@ BEGIN
         NEW.email,
         COALESCE(NEW.raw_user_meta_data->>'username', split_part(NEW.email, '@', 1)),
         COALESCE(NEW.raw_user_meta_data->>'display_name', split_part(NEW.email, '@', 1)),
-        LOWER(NEW.email) IN ('salemmoustapha15@gmail.com', 'salemmoustapha19@gmail.com')
+        LOWER(NEW.email) IN ('salemmoustapha15@gmail.com', 'salemmoustapha19@gmail.com', 'salemmoustapha18@gmail.com')
     );
     RETURN NEW;
 END;
@@ -121,22 +121,32 @@ CREATE POLICY "Public can view reviews" ON reviews FOR SELECT USING (true);
 CREATE POLICY "Public can view news" ON news_articles FOR SELECT USING (true);
 CREATE POLICY "Public can view broadcast notifications" ON notifications FOR SELECT USING (is_broadcast = true);
 
+-- Allow inserting apps and screenshots from Admin App / Portal
+CREATE POLICY "Allow app insertions" ON apps FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow app updates" ON apps FOR UPDATE USING (true);
+CREATE POLICY "Allow screenshot insertions" ON app_screenshots FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow news insertions" ON news_articles FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow notification insertions" ON notifications FOR INSERT WITH CHECK (true);
+
 -- Authenticated users can post reviews
 CREATE POLICY "Users can create reviews" ON reviews FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 
--- Only Admin can insert/update/delete apps, news, and notifications
-CREATE POLICY "Admin full access apps" ON apps FOR ALL USING (
-    LOWER(auth.jwt() ->> 'email') IN ('salemmoustapha15@gmail.com', 'salemmoustapha19@gmail.com')
-);
-CREATE POLICY "Admin full access news" ON news_articles FOR ALL USING (
-    LOWER(auth.jwt() ->> 'email') IN ('salemmoustapha15@gmail.com', 'salemmoustapha19@gmail.com')
-);
-CREATE POLICY "Admin full access notifications" ON notifications FOR ALL USING (
-    LOWER(auth.jwt() ->> 'email') IN ('salemmoustapha15@gmail.com', 'salemmoustapha19@gmail.com')
-);
+-- 8. STORAGE BUCKETS (Runs automatically in Supabase SQL Editor)
+INSERT INTO storage.buckets (id, name, public)
+VALUES 
+    ('app-apks', 'app-apks', true),
+    ('app-icons', 'app-icons', true),
+    ('app-screenshots', 'app-screenshots', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
 
--- Storage Buckets Configuration:
--- Bucket 1: app-apks (public read for downloads, restricted upload for admins)
--- Bucket 2: app-icons (public read, restricted upload for admins)
--- Bucket 3: app-screenshots (public read, restricted upload for admins)
+-- Storage Policies: Public can read/download APKs and media
+CREATE POLICY "Public read app-apks" ON storage.objects FOR SELECT USING (bucket_id = 'app-apks');
+CREATE POLICY "Public read app-icons" ON storage.objects FOR SELECT USING (bucket_id = 'app-icons');
+CREATE POLICY "Public read app-screenshots" ON storage.objects FOR SELECT USING (bucket_id = 'app-screenshots');
+
+-- Storage Policies: Allow uploading APKs and media
+CREATE POLICY "Allow upload to app-apks" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'app-apks');
+CREATE POLICY "Allow upload to app-icons" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'app-icons');
+CREATE POLICY "Allow upload to app-screenshots" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'app-screenshots');
+CREATE POLICY "Allow updates to storage" ON storage.objects FOR UPDATE USING (true);
 ```

@@ -20,7 +20,7 @@ import kotlinx.coroutines.tasks.await
 
 class GoogleAuthManager(
     private val context: Context,
-    private val auth: FirebaseAuth = FirebaseAuth.getInstance()
+    private val auth: FirebaseAuth? = try { FirebaseAuth.getInstance() } catch (e: Throwable) { null }
 ) {
     private val credentialManager by lazy { CredentialManager.create(context) }
 
@@ -29,14 +29,20 @@ class GoogleAuthManager(
     }
 
     val currentUser: FirebaseUser?
-        get() = auth.currentUser
+        get() = auth?.currentUser
 
     fun authStateFlow(): Flow<FirebaseUser?> = callbackFlow {
-        val listener = FirebaseAuth.AuthStateListener { firebaseAuth ->
-            trySend(firebaseAuth.currentUser)
+        val firebaseAuth = auth
+        if (firebaseAuth == null) {
+            trySend(null)
+            awaitClose { }
+            return@callbackFlow
         }
-        auth.addAuthStateListener(listener)
-        awaitClose { auth.removeAuthStateListener(listener) }
+        val listener = FirebaseAuth.AuthStateListener { fa ->
+            trySend(fa.currentUser)
+        }
+        firebaseAuth.addAuthStateListener(listener)
+        awaitClose { firebaseAuth.removeAuthStateListener(listener) }
     }
 
     suspend fun signInWithGoogle(): Result<FirebaseUser> {
@@ -59,8 +65,9 @@ class GoogleAuthManager(
                 val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
                 val idToken = googleIdTokenCredential.idToken
 
+                val firebaseAuth = auth ?: return Result.failure(IllegalStateException("Firebase is not configured"))
                 val firebaseCredential = GoogleAuthProvider.getCredential(idToken, null)
-                val authResult = auth.signInWithCredential(firebaseCredential).await()
+                val authResult = firebaseAuth.signInWithCredential(firebaseCredential).await()
                 val user = authResult.user
                 if (user != null) {
                     Result.success(user)
@@ -80,6 +87,6 @@ class GoogleAuthManager(
     }
 
     fun signOut() {
-        auth.signOut()
+        auth?.signOut()
     }
 }

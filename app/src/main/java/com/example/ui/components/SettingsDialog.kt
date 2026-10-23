@@ -37,6 +37,8 @@ import com.example.ui.theme.TextSecondary
 @Composable
 fun SettingsDialog(
     currentAdminEmail: String,
+    isHighContrast: Boolean = false,
+    onToggleTheme: () -> Unit = {},
     onDismiss: () -> Unit,
     onSaveAdminEmail: (String) -> Unit
 ) {
@@ -82,6 +84,32 @@ fun SettingsDialog(
                 Spacer(modifier = Modifier.height(14.dp))
                 HorizontalDivider(color = BorderLight)
                 Spacer(modifier = Modifier.height(14.dp))
+
+                // Theme Mode Switch
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isHighContrast) "High Contrast Light Mode" else "Dark Mode (Current)",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = "Toggle high contrast light theme for accessibility",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary
+                        )
+                    }
+                    Switch(
+                        checked = isHighContrast,
+                        onCheckedChange = { onToggleTheme() },
+                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = AppleBlue)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),

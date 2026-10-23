@@ -3,6 +3,7 @@ package com.example.ui.screens
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,10 +20,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AdminPanelSettings
+import androidx.compose.material.icons.filled.Article
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material3.Button
@@ -34,6 +40,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,13 +55,16 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.R
 import com.example.data.models.AppItem
+import com.example.data.models.FeaturedBannerConfig
 import com.example.data.models.NewsItem
 import com.example.ui.components.AppStoreSectionHeader
 import com.example.ui.components.CompactAppItem
 import com.example.ui.components.LiquidGlassSearchBar
 import com.example.ui.components.SpoiledStoreWordmark
+import com.example.ui.theme.AppleBlue
 import com.example.ui.theme.BorderLight
 import com.example.ui.theme.CharcoalCardEnd
 import com.example.ui.theme.CharcoalCardMid
@@ -67,8 +80,13 @@ fun HomeScreen(
     apps: List<AppItem>,
     newsList: List<NewsItem>,
     isAdmin: Boolean,
+    featuredBanner: FeaturedBannerConfig = FeaturedBannerConfig(),
+    isHighContrast: Boolean = false,
+    onToggleTheme: () -> Unit = {},
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
+    selectedCategory: String = "All",
+    onCategorySelect: (String) -> Unit = {},
     installedAppIds: Set<String>,
     downloadProgress: Map<String, Float>,
     onAppClick: (String) -> Unit,
@@ -78,25 +96,75 @@ fun HomeScreen(
     onGoToAdminPanel: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val topApps = apps.filter { it.isTopApp }
-    val topGames = apps.filter { it.isTopGame }
-    val otherApps = apps.filter { !it.isTopApp && !it.isTopGame }
+    val categories = listOf(
+        "All", "Puzzles", "Trivia", "Indie Kids", "Racing", "Productivity", "Finance", "Photo & Video", "Utilities"
+    )
+
+    val displayedApps = if (selectedCategory == "All") {
+        apps
+    } else {
+        apps.filter { it.category.equals(selectedCategory, ignoreCase = true) }
+    }
+
+    val topApps = displayedApps.filter { it.isTopApp }
+    val topGames = displayedApps.filter { it.isTopGame }
+    val heavyRotationApps = displayedApps.sortedByDescending { it.downloadsCount }
+    val otherApps = displayedApps.filter { !it.isTopApp && !it.isTopGame }
 
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
             .testTag("home_screen_feed"),
-        contentPadding = PaddingValues(bottom = 90.dp)
+        contentPadding = PaddingValues(bottom = 100.dp)
     ) {
-        // 1. Header Wordmark ("Spoiled Store")
+        // 1. Header Wordmark ("Spoiled Store") & Search
         item {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 6.dp)
             ) {
-                SpoiledStoreWordmark()
-                Spacer(modifier = Modifier.height(14.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SpoiledStoreWordmark()
+
+                    if (isAdmin) {
+                        Surface(
+                            shape = RoundedCornerShape(999.dp),
+                            color = Color.Black,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .clickable { onGoToAdminPanel() }
+                                .testTag("home_admin_quick_button")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Shield,
+                                    contentDescription = "Admin Panel",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Text(
+                                    text = "Admin",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        color = Color.White
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
                 LiquidGlassSearchBar(
                     query = searchQuery,
                     onQueryChange = onSearchQueryChange
@@ -104,15 +172,48 @@ fun HomeScreen(
             }
         }
 
-        // 2. Featured Card (Clean Monochrome)
+        // 2. Category Filter Pills (Horizontal swipe)
+        item {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(vertical = 8.dp).testTag("home_category_pills")
+            ) {
+                items(categories) { category ->
+                    val isSelected = selectedCategory == category
+                    Surface(
+                        shape = RoundedCornerShape(999.dp),
+                        color = if (isSelected) Color.Black else SurfaceSecondary,
+                        border = BorderStroke(1.dp, if (isSelected) Color.Black else BorderLight),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .clickable { onCategorySelect(category) }
+                            .testTag("home_pill_${category.lowercase().replace(" ", "_")}")
+                    ) {
+                        Text(
+                            text = category,
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 12.sp
+                            ),
+                            color = if (isSelected) Color.White else TextPrimary,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // 3. Featured Card (Admin Customizable)
         item {
             TodayFeaturedCard(
+                banner = featuredBanner,
                 onCardClick = onSeeAllAppsClick,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
             )
         }
 
-        // If NO apps exist yet in the store:
+        // Empty state when catalog is empty
         if (apps.isEmpty()) {
             item {
                 Card(
@@ -136,74 +237,69 @@ fun HomeScreen(
                                 Icon(Icons.Default.Store, contentDescription = null, tint = Color.Black, modifier = Modifier.size(24.dp))
                             }
                         }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
+                        Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            text = "Authentic Store Catalog",
+                            text = "Catalog Awaiting Uploads",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             color = TextPrimary
                         )
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "All fake placeholder apps have been removed. Every application in Spoiled Store is real, with genuine uploaded APK files and verified internal storage.",
+                            text = "Upload real Android APK packages directly from the Admin Panel to populate the store for all users.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary,
-                            lineHeight = 18.sp
+                            color = TextSecondary
                         )
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
                         if (isAdmin) {
+                            Spacer(modifier = Modifier.height(14.dp))
                             Button(
                                 onClick = onGoToAdminPanel,
                                 colors = ButtonDefaults.buttonColors(containerColor = Color.Black, contentColor = Color.White),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.testTag("home_go_admin_btn")
+                                shape = RoundedCornerShape(10.dp)
                             ) {
                                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Upload App in Admin Panel")
+                                Text("Upload App Now")
                             }
-                        } else {
-                            Text(
-                                text = "Admin can log in via Profile with salemmoustapha15@gmail.com to upload apps.",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = TextTertiary
-                            )
                         }
                     }
                 }
             }
         } else {
-            // 3. Top Apps Section (if any)
-            if (topApps.isNotEmpty()) {
-                item {
-                    AppStoreSectionHeader(
-                        title = "Top Apps",
-                        onSeeAllClick = onSeeAllAppsClick
+            // 4. APPS IN HEAVY ROTATION
+            item {
+                Column(modifier = Modifier.padding(horizontal = 20.dp).padding(top = 16.dp, bottom = 4.dp)) {
+                    Text(
+                        text = "Apps in Heavy Rotation",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = (-0.4).sp
+                        ),
+                        color = TextPrimary
                     )
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 20.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    ) {
-                        items(topApps, key = { it.id }) { app ->
-                            CompactAppItem(
-                                app = app,
-                                isInstalled = installedAppIds.contains(app.id),
-                                downloadProgress = downloadProgress[app.id],
-                                onAppClick = { onAppClick(app.slug) },
-                                onInstallClick = { onInstallClick(app.id) }
-                            )
-                        }
+                    Text(
+                        text = "Keep up with the trends in culture and technology",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+                }
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.padding(vertical = 12.dp)
+                ) {
+                    items(heavyRotationApps.take(6), key = { "rot_${it.id}" }) { app ->
+                        CompactAppItem(
+                            app = app,
+                            isInstalled = installedAppIds.contains(app.id),
+                            downloadProgress = downloadProgress[app.id],
+                            onAppClick = { onAppClick(app.slug) },
+                            onInstallClick = { onInstallClick(app.id) }
+                        )
                     }
                 }
             }
 
-            // 4. Top Games Section (if any)
+            // 5. Top Games Section (if any)
             if (topGames.isNotEmpty()) {
                 item {
                     AppStoreSectionHeader(
@@ -228,8 +324,33 @@ fun HomeScreen(
                 }
             }
 
-            // 5. All Uploaded Store Apps
-            val allOther = if (topApps.isEmpty() && topGames.isEmpty()) apps else otherApps
+            // 6. Top Downloaded Apps Section
+            if (topApps.isNotEmpty()) {
+                item {
+                    AppStoreSectionHeader(
+                        title = "Top Downloaded Apps",
+                        onSeeAllClick = onSeeAllAppsClick
+                    )
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 20.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    ) {
+                        items(topApps, key = { "top_${it.id}" }) { app ->
+                            CompactAppItem(
+                                app = app,
+                                isInstalled = installedAppIds.contains(app.id),
+                                downloadProgress = downloadProgress[app.id],
+                                onAppClick = { onAppClick(app.slug) },
+                                onInstallClick = { onInstallClick(app.id) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 7. Recently Uploaded Apps
+            val allOther = if (topApps.isEmpty() && topGames.isEmpty()) displayedApps else otherApps
             if (allOther.isNotEmpty()) {
                 item {
                     AppStoreSectionHeader(
@@ -241,7 +362,7 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                         modifier = Modifier.padding(bottom = 16.dp)
                     ) {
-                        items(allOther, key = { it.id }) { app ->
+                        items(allOther, key = { "rec_${it.id}" }) { app ->
                             CompactAppItem(
                                 app = app,
                                 isInstalled = installedAppIds.contains(app.id),
@@ -255,7 +376,7 @@ fun HomeScreen(
             }
         }
 
-        // 6. News Stories on Homepage
+        // 8. Latest Store News Stories
         if (newsList.isNotEmpty()) {
             item {
                 Spacer(modifier = Modifier.height(8.dp))
@@ -308,6 +429,7 @@ fun HomeScreen(
 
 @Composable
 private fun TodayFeaturedCard(
+    banner: FeaturedBannerConfig,
     onCardClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -334,15 +456,25 @@ private fun TodayFeaturedCard(
                     )
                 )
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.featured_card_phone),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .width(180.dp)
-                    .height(175.dp)
-                    .align(Alignment.CenterEnd)
-            )
+            if (banner.imageUrl.isNotBlank()) {
+                AsyncImage(
+                    model = banner.imageUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                )
+            } else {
+                Image(
+                    painter = painterResource(id = R.drawable.featured_card_phone),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .width(180.dp)
+                        .height(175.dp)
+                        .align(Alignment.CenterEnd)
+                )
+            }
 
             Box(
                 modifier = Modifier
@@ -350,8 +482,8 @@ private fun TodayFeaturedCard(
                     .background(
                         Brush.horizontalGradient(
                             colors = listOf(
-                                CharcoalCardStart,
-                                CharcoalCardStart.copy(alpha = 0.88f),
+                                CharcoalCardStart.copy(alpha = 0.95f),
+                                CharcoalCardStart.copy(alpha = 0.85f),
                                 Color.Transparent
                             )
                         )
@@ -366,7 +498,7 @@ private fun TodayFeaturedCard(
             ) {
                 Column {
                     Text(
-                        text = "FEATURED ECOSYSTEM",
+                        text = banner.tagline.uppercase(),
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.2.sp
@@ -375,13 +507,14 @@ private fun TodayFeaturedCard(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Real APK Downloads\n& Cloud Storage",
+                        text = banner.title,
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold,
                             letterSpacing = (-0.4).sp,
                             lineHeight = 26.sp
                         ),
-                        color = Color.White
+                        color = Color.White,
+                        maxLines = 2
                     )
                 }
 
@@ -390,7 +523,7 @@ private fun TodayFeaturedCard(
                     modifier = Modifier.clip(RoundedCornerShape(12.dp))
                 ) {
                     Text(
-                        text = "Explore Catalog",
+                        text = banner.description.ifBlank { "Explore Catalog" },
                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
                         color = Color.White
                     )

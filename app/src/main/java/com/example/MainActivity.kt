@@ -42,6 +42,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.Search
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.models.StoreNavigationTab
 import com.example.ui.StoreViewModel
@@ -61,6 +63,7 @@ import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.NewsScreen
 import com.example.ui.screens.ProfileScreen
 import com.example.ui.screens.PurchasedScreen
+import com.example.ui.screens.SearchScreen
 import com.example.ui.screens.SubscriptionsScreen
 import com.example.ui.screens.WishlistScreen
 import com.example.ui.screens.RedeemGiftCardScreen
@@ -76,7 +79,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            SpoiledStoreTheme {
+            val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+            SpoiledStoreTheme(isHighContrastLight = uiState.isHighContrastLightMode) {
                 SpoiledStoreApp(viewModel = viewModel)
             }
         }
@@ -98,6 +102,7 @@ fun SpoiledStoreApp(
     val newsList by viewModel.newsList.collectAsStateWithLifecycle()
     val allComments by viewModel.comments.collectAsStateWithLifecycle()
     val notifications by viewModel.notifications.collectAsStateWithLifecycle()
+    val featuredBanner by viewModel.featuredBanner.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -125,7 +130,7 @@ fun SpoiledStoreApp(
 
             if (!isSubPageActive) {
                 NavigationBar(
-                    containerColor = SurfaceLight,
+                    containerColor = MaterialTheme.colorScheme.surface,
                     contentColor = MaterialTheme.colorScheme.onSurface,
                     tonalElevation = 0.dp,
                     modifier = Modifier.testTag("spoiled_bottom_navigation")
@@ -134,7 +139,7 @@ fun SpoiledStoreApp(
                         StoreNavigationTab.HOME to (Icons.Filled.Home to Icons.Outlined.Home),
                         StoreNavigationTab.APPS to (Icons.Filled.GridView to Icons.Outlined.GridView),
                         StoreNavigationTab.GAMES to (Icons.Filled.SportsEsports to Icons.Outlined.SportsEsports),
-                        StoreNavigationTab.NEWS to (Icons.Filled.Article to Icons.Outlined.Article),
+                        StoreNavigationTab.SEARCH to (Icons.Filled.Search to Icons.Outlined.Search),
                         StoreNavigationTab.PROFILE to (Icons.Filled.Person to Icons.Outlined.Person)
                     )
 
@@ -157,8 +162,8 @@ fun SpoiledStoreApp(
                                 )
                             },
                             colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Color.Black,
-                                selectedTextColor = Color.Black,
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
                                 indicatorColor = Color.Transparent,
                                 unselectedIconColor = TextTertiary,
                                 unselectedTextColor = TextTertiary
@@ -199,6 +204,9 @@ fun SpoiledStoreApp(
                         apps = allApps,
                         newsList = newsList,
                         adminEmail = userProfile.email.ifBlank { viewModel.adminEmail },
+                        featuredBanner = featuredBanner,
+                        onUpdateFeaturedBanner = { title, tag, img -> viewModel.updateFeaturedBanner(title, tag, img) },
+                        onDeleteDemoApps = { viewModel.deleteDemoCatalogApps() },
                         onBackClick = { viewModel.toggleAdminPanelSheet(false) },
                         onOpenUploadDialog = { viewModel.toggleAdminUploadSheet(true) },
                         onOpenUploadNewsDialog = { viewModel.toggleAdminUploadNewsSheet(true) },
@@ -293,8 +301,13 @@ fun SpoiledStoreApp(
                                     apps = searchResults,
                                     newsList = newsList,
                                     isAdmin = userProfile.isAdmin,
+                                    featuredBanner = featuredBanner,
+                                    isHighContrast = uiState.isHighContrastLightMode,
+                                    onToggleTheme = { viewModel.toggleThemeMode() },
                                     searchQuery = uiState.searchQuery,
                                     onSearchQueryChange = { viewModel.setSearchQuery(it) },
+                                    selectedCategory = uiState.selectedCategory,
+                                    onCategorySelect = { viewModel.setCategory(it) },
                                     installedAppIds = installedAppIds,
                                     downloadProgress = downloadProgress,
                                     onAppClick = { viewModel.openAppDetail(it) },
@@ -331,6 +344,18 @@ fun SpoiledStoreApp(
                                 )
                             }
 
+                            StoreNavigationTab.SEARCH -> {
+                                SearchScreen(
+                                    apps = allApps,
+                                    searchQuery = uiState.searchQuery,
+                                    onSearchQueryChange = { viewModel.setSearchQuery(it) },
+                                    installedAppIds = installedAppIds,
+                                    downloadProgress = downloadProgress,
+                                    onAppClick = { viewModel.openAppDetail(it) },
+                                    onInstallClick = { viewModel.installApp(it) }
+                                )
+                            }
+
                             StoreNavigationTab.NEWS -> {
                                 NewsScreen(newsList = newsList)
                             }
@@ -340,7 +365,10 @@ fun SpoiledStoreApp(
                                     userProfile = userProfile,
                                     purchasedCount = purchasedAppIds.size,
                                     wishlistCount = wishlistAppIds.size,
+                                    installedCount = installedAppIds.size,
                                     unreadNotificationsCount = notifications.size,
+                                    themePreference = uiState.themePreference,
+                                    onSetThemePreference = { viewModel.setThemePreference(it) },
                                     onSignInClick = { viewModel.toggleSignInDialog(true) },
                                     onSignOutClick = { viewModel.signOut() },
                                     onAdminPanelClick = { viewModel.toggleAdminPanelSheet(true) },
@@ -374,6 +402,8 @@ fun SpoiledStoreApp(
     if (uiState.showSettingsDialog) {
         SettingsDialog(
             currentAdminEmail = viewModel.adminEmail,
+            isHighContrast = uiState.isHighContrastLightMode,
+            onToggleTheme = { viewModel.toggleThemeMode() },
             onDismiss = { viewModel.toggleSettingsDialog(false) },
             onSaveAdminEmail = { viewModel.showSnackbar("Admin access verified for: $it") }
         )
@@ -408,7 +438,12 @@ fun SpoiledStoreApp(
             onCopyApkFromUri = { uri, name -> viewModel.copyApkFileFromUri(uri, name) },
             onCopyImageFromUri = { uri, isIcon -> viewModel.copyImageFileFromUri(uri, isIcon) },
             onCreateSampleApk = { name -> viewModel.createSampleApkOnDisk(name) },
-            onUpload = { name, cat, dev, tag, desc, apk, size, ver, icon, shots, bundle, price, sub, topApp, topGame, newNote, feat, overview, speed, sec ->
+            onUploadImageToCloud = { uri, isIcon, onResult -> viewModel.uploadImageToSupabase(uri, isIcon, onResult) },
+            onUploadApkToCloud = { uri, name, onResult -> viewModel.uploadApkToSupabase(uri, name, onResult) },
+            onUploadSampleApkToCloud = { name, onResult -> viewModel.uploadSampleApkToSupabase(name, onResult) },
+            supabaseConfig = viewModel.getSupabaseConfig(),
+            onSaveSupabaseConfig = { url, key -> viewModel.saveSupabaseConfig(url, key) },
+            onUpload = { name, cat, dev, tag, desc, apk, size, ver, icon, shots, bundle, price, sub, topApp, topGame, newNote, feat, overview, speed, sec, cloudApkUrl ->
                 viewModel.uploadRealApp(
                     name = name,
                     category = cat,
@@ -429,7 +464,8 @@ fun SpoiledStoreApp(
                     isFeatured = feat,
                     overview = overview,
                     speedScore = speed,
-                    securityStatus = sec
+                    securityStatus = sec,
+                    cloudApkUrl = cloudApkUrl
                 )
             }
         )

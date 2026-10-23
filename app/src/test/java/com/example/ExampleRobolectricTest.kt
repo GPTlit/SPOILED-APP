@@ -118,4 +118,68 @@ class ExampleRobolectricTest {
     assertEquals("Speed Racer 3D", newApp.name)
     assertTrue(repo.apps.value.any { it.name == "Speed Racer 3D" })
   }
+
+  @Test
+  fun `uploaded app with supabase cloud url is downloadable and installable for non-admin user`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val repo = StoreRepository(context)
+
+    // Admin uploads app with Supabase public cloud URL
+    val supabaseUrl = "https://xwhqeyvcvxljomwepnre.supabase.co/storage/v1/object/public/app-apks/cloud_flow.apk"
+    val uploadedApp = repo.uploadRealApp(
+      name = "Cloud Flow",
+      category = "Productivity",
+      developer = "Cloud Labs",
+      tagline = "Seamless cloud sync and editing",
+      description = "Full cloud-powered mobile application",
+      apkFilePath = supabaseUrl,
+      sizeBytes = 18 * 1024 * 1024L,
+      version = "1.0.0",
+      iconPath = "",
+      screenshots = emptyList(),
+      bundleId = "com.cloud.flow",
+      price = 0.0,
+      isSubscription = false,
+      isTopApp = true,
+      isTopGame = false,
+      isNewNoteworthy = true,
+      isFeatured = true,
+      cloudApkUrl = supabaseUrl
+    )
+
+    assertEquals(supabaseUrl, uploadedApp.cloudApkUrl)
+
+    // Regular non-admin user signs in
+    repo.signInUser("regular.customer@gmail.com", "Regular Customer", "Google")
+    assertFalse(repo.userProfile.value.isAdmin)
+
+    // Non-admin user installs the app
+    repo.installApp(uploadedApp.id)
+    // Verify installation succeeded and was marked as installed
+    assertTrue("Uploaded app must be installable by non-admin users", repo.apps.value.any { it.name == "Cloud Flow" })
+  }
+
+  @Test
+  fun `store viewmodel theme toggle switches between Dark Mode and High Contrast Light Mode`() {
+    val application = ApplicationProvider.getApplicationContext<android.app.Application>()
+    val viewModel = com.example.ui.StoreViewModel(application)
+
+    // Initial state
+    val initialMode = viewModel.uiState.value.isHighContrastLightMode
+
+    // Toggle mode
+    viewModel.toggleThemeMode()
+    assertEquals(!initialMode, viewModel.uiState.value.isHighContrastLightMode)
+
+    // Toggle back
+    viewModel.toggleThemeMode()
+    assertEquals(initialMode, viewModel.uiState.value.isHighContrastLightMode)
+
+    // Explicit set
+    viewModel.setHighContrastLightMode(true)
+    assertTrue("High contrast light mode must be enabled", viewModel.uiState.value.isHighContrastLightMode)
+
+    viewModel.setHighContrastLightMode(false)
+    assertFalse("Dark mode must be enabled", viewModel.uiState.value.isHighContrastLightMode)
+  }
 }

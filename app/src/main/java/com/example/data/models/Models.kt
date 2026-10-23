@@ -81,12 +81,20 @@ data class UserProfile(
     val displayName: String get() = username.ifBlank { email.substringBefore("@").ifBlank { "User" } }
 }
 
+data class FeaturedBannerConfig(
+    val title: String = "Real APK Downloads\n& Cloud Storage",
+    val tagline: String = "FEATURED ECOSYSTEM",
+    val description: String = "Explore Catalog",
+    val imageUrl: String = ""
+)
+
 enum class StoreNavigationTab(val label: String) {
-    HOME("Homepage"),
+    HOME("Today"),
     APPS("Apps"),
     GAMES("Games"),
-    NEWS("News"),
-    PROFILE("Profile")
+    SEARCH("Search"),
+    PROFILE("Profile"),
+    NEWS("News")
 }
 
 object StoreCategories {

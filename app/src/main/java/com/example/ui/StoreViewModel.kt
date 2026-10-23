@@ -2,6 +2,7 @@ package com.example.ui
 
 import android.app.Application
 import android.net.Uri
+import java.io.File
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.StoreRepository
@@ -11,6 +12,7 @@ import com.example.data.models.NewsItem
 import com.example.data.models.StoreNotification
 import com.example.data.models.StoreNavigationTab
 import com.example.data.models.UserProfile
+import com.example.data.models.FeaturedBannerConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -25,10 +27,13 @@ data class StoreUiState(
     val selectedAppSlug: String? = null,
     val searchQuery: String = "",
     val selectedCategory: String = "All",
+    val themePreference: String = "dark", // "dark", "light", "system"
+    val isHighContrastLightMode: Boolean = false,
     val showAdminUploadSheet: Boolean = false,
     val showAdminUploadNewsSheet: Boolean = false,
     val showAdminNotificationSheet: Boolean = false,
     val showAdminPanelSheet: Boolean = false,
+    val showCustomizeBannerDialog: Boolean = false,
     val showPurchasedScreen: Boolean = false,
     val showSubscriptionsScreen: Boolean = false,
     val showWishlistScreen: Boolean = false,
@@ -46,8 +51,14 @@ class StoreViewModel(
 ) : AndroidViewModel(application) {
 
     private val repository: StoreRepository = StoreRepository(application.applicationContext)
+    private val prefs = application.getSharedPreferences("spoiled_store_theme_prefs", Application.MODE_PRIVATE)
 
-    private val _uiState = MutableStateFlow(StoreUiState())
+    private val _uiState = MutableStateFlow(
+        StoreUiState(
+            themePreference = prefs.getString("theme_pref", "dark") ?: "dark",
+            isHighContrastLightMode = prefs.getBoolean("high_contrast_light", false)
+        )
+    )
     val uiState: StateFlow<StoreUiState> = _uiState.asStateFlow()
 
     val apps: StateFlow<List<AppItem>> = repository.apps
@@ -60,6 +71,7 @@ class StoreViewModel(
     val newsList: StateFlow<List<NewsItem>> = repository.newsList
     val comments: StateFlow<List<CommentItem>> = repository.comments
     val notifications: StateFlow<List<StoreNotification>> = repository.notifications
+    val featuredBanner: StateFlow<FeaturedBannerConfig> = repository.featuredBanner
 
     val searchResults: StateFlow<List<AppItem>> = combine(
         apps,
@@ -148,6 +160,40 @@ class StoreViewModel(
 
     fun toggleNotificationsDialog(show: Boolean) {
         _uiState.update { it.copy(showNotificationsDialog = show) }
+    }
+
+    fun toggleThemeMode() {
+        val newMode = !_uiState.value.isHighContrastLightMode
+        val newPref = if (newMode) "light" else "dark"
+        prefs.edit().putBoolean("high_contrast_light", newMode).putString("theme_pref", newPref).apply()
+        _uiState.update { it.copy(isHighContrastLightMode = newMode, themePreference = newPref) }
+    }
+
+    fun setThemePreference(pref: String) {
+        val isLight = pref == "light"
+        prefs.edit().putString("theme_pref", pref).putBoolean("high_contrast_light", isLight).apply()
+        _uiState.update { it.copy(themePreference = pref, isHighContrastLightMode = isLight) }
+    }
+
+    fun setHighContrastLightMode(enabled: Boolean) {
+        val pref = if (enabled) "light" else "dark"
+        prefs.edit().putBoolean("high_contrast_light", enabled).putString("theme_pref", pref).apply()
+        _uiState.update { it.copy(isHighContrastLightMode = enabled, themePreference = pref) }
+    }
+
+    fun toggleCustomizeBannerDialog(show: Boolean) {
+        _uiState.update { it.copy(showCustomizeBannerDialog = show) }
+    }
+
+    fun updateFeaturedBanner(title: String, tagline: String, imageUrl: String) {
+        repository.updateFeaturedBanner(title, tagline, imageUrl)
+        _uiState.update { it.copy(showCustomizeBannerDialog = false) }
+        showSnackbar("Featured ecosystem banner updated!")
+    }
+
+    fun deleteDemoCatalogApps() {
+        repository.deleteDemoCatalogApps()
+        showSnackbar("Demo catalog cleared. Only administrator uploaded apps are visible.")
     }
 
     fun launchRealGoogleSignIn(onSuccess: () -> Unit = {}, onFailure: (String) -> Unit = {}) {
@@ -278,6 +324,35 @@ class StoreViewModel(
         }
     }
 
+    fun uploadApkToSupabase(uri: Uri, originalName: String, onResult: (String?, Long) -> Unit) {
+        viewModelScope.launch {
+            val result = repository.uploadApkToSupabase(uri, originalName)
+            if (result.isSuccess) {
+                val pair = result.getOrNull()
+                showSnackbar("APK uploaded to Supabase Storage: public download active for all users!")
+                onResult(pair?.first, pair?.second ?: 0L)
+            } else {
+                showSnackbar("Supabase upload failed: ${result.exceptionOrNull()?.message ?: "Unknown error"}")
+                onResult(null, 0L)
+            }
+        }
+    }
+
+    fun uploadSampleApkToSupabase(appName: String, onResult: (String?, Long) -> Unit) {
+        viewModelScope.launch {
+            val localSample = repository.createSampleApkOnDisk(appName)
+            val file = File(localSample.first)
+            val result = repository.uploadApkFileToSupabase(file, "${appName.lowercase().replace("\\s+".toRegex(), "_")}_release.apk")
+            if (result.isSuccess) {
+                val pair = result.getOrNull()
+                showSnackbar("Sample package uploaded to Supabase Storage!")
+                onResult(pair?.first, pair?.second ?: localSample.second)
+            } else {
+                onResult(localSample.first, localSample.second)
+            }
+        }
+    }
+
     fun createSampleApkOnDisk(appName: String): Pair<String, Long> {
         return repository.createSampleApkOnDisk(appName)
     }
@@ -302,9 +377,16 @@ class StoreViewModel(
         isFeatured: Boolean,
         overview: String,
         speedScore: String,
-        securityStatus: String
+        securityStatus: String,
+        cloudApkUrl: String = ""
     ): AppItem {
-        val cloudUrl = if (apkFilePath.startsWith("http://", ignoreCase = true) || apkFilePath.startsWith("https://", ignoreCase = true)) apkFilePath else ""
+        val resolvedCloudUrl = if (cloudApkUrl.isNotBlank()) {
+            cloudApkUrl
+        } else if (apkFilePath.startsWith("http://", ignoreCase = true) || apkFilePath.startsWith("https://", ignoreCase = true)) {
+            apkFilePath
+        } else {
+            ""
+        }
         val app = repository.uploadRealApp(
             name = name,
             category = category,
@@ -326,7 +408,7 @@ class StoreViewModel(
             overview = overview,
             speedScore = speedScore,
             securityStatus = securityStatus,
-            cloudApkUrl = cloudUrl
+            cloudApkUrl = resolvedCloudUrl
         )
         _uiState.update { it.copy(showAdminUploadSheet = false) }
         showSnackbar("App '${app.name}' uploaded and live on Spoiled Store!")

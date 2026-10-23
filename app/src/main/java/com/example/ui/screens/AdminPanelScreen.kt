@@ -42,7 +42,17 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.example.data.models.AppItem
+import com.example.data.models.FeaturedBannerConfig
 import com.example.data.models.NewsItem
 import com.example.ui.components.AppIconImage
 import com.example.ui.theme.AppleBlue
@@ -65,9 +75,15 @@ fun AdminPanelScreen(
     onDeleteApp: (String) -> Unit,
     onDeleteNews: (String) -> Unit,
     onAppClick: (String) -> Unit,
+    featuredBanner: FeaturedBannerConfig = FeaturedBannerConfig(),
+    onUpdateFeaturedBanner: (title: String, tagline: String, imageUrl: String) -> Unit = { _, _, _ -> },
+    onDeleteDemoApps: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     androidx.activity.compose.BackHandler { onBackClick() }
+
+    var showBannerDialog by remember { mutableStateOf(false) }
+    var showDeleteDemoConfirmDialog by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = modifier
@@ -173,6 +189,36 @@ fun AdminPanelScreen(
                             Icon(imageVector = Icons.Default.Article, contentDescription = null, modifier = Modifier.size(15.dp), tint = Color.Black)
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(text = "Post News", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = Color.Black)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = { showBannerDialog = true },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .weight(1.3f)
+                                .height(44.dp)
+                                .testTag("admin_customize_banner_button")
+                        ) {
+                            Icon(imageVector = Icons.Default.Image, contentDescription = null, modifier = Modifier.size(15.dp), tint = Color.Black)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(text = "Edit Featured Banner", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = Color.Black)
+                        }
+
+                        OutlinedButton(
+                            onClick = { showDeleteDemoConfirmDialog = true },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .weight(1.1f)
+                                .height(44.dp)
+                                .testTag("admin_delete_demo_apps_button")
+                        ) {
+                            Icon(imageVector = Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(15.dp), tint = MaterialTheme.colorScheme.error)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(text = "Clear Demo Apps", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.error)
                         }
                     }
                 }
@@ -358,6 +404,117 @@ fun AdminPanelScreen(
         item {
             Spacer(modifier = Modifier.height(40.dp))
         }
+    }
+
+    if (showBannerDialog) {
+        var bannerTitle by remember { mutableStateOf(featuredBanner.title) }
+        var bannerTagline by remember { mutableStateOf(featuredBanner.tagline) }
+        var bannerImageUrl by remember { mutableStateOf(featuredBanner.imageUrl) }
+
+        AlertDialog(
+            onDismissRequest = { showBannerDialog = false },
+            title = {
+                Text(
+                    text = "Edit Featured Ecosystem Banner",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                )
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "Customize the top featured card on the store homepage. You can change the title, tagline, and background artwork image URL.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    OutlinedTextField(
+                        value = bannerTagline,
+                        onValueChange = { bannerTagline = it },
+                        label = { Text("Tagline / Category") },
+                        placeholder = { Text("FEATURED ECOSYSTEM") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = bannerTitle,
+                        onValueChange = { bannerTitle = it },
+                        label = { Text("Banner Headline") },
+                        placeholder = { Text("Real APK Downloads & Cloud Storage") },
+                        minLines = 2,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = bannerImageUrl,
+                        onValueChange = { bannerImageUrl = it },
+                        label = { Text("Artwork Image URL (optional)") },
+                        placeholder = { Text("https://... or leave empty for default 3D phone") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onUpdateFeaturedBanner(bannerTitle, bannerTagline, bannerImageUrl)
+                        showBannerDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Black, contentColor = Color.White),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Save Banner")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { showBannerDialog = false },
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Cancel", color = TextSecondary)
+                }
+            }
+        )
+    }
+
+    if (showDeleteDemoConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDemoConfirmDialog = false },
+            title = {
+                Text(
+                    text = "Delete Demo Catalog Apps?",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                )
+            },
+            text = {
+                Text(
+                    text = "This will remove all pre-bundled sample apps from the store catalog so that only real applications uploaded by you (the administrator) will be visible to users.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDeleteDemoApps()
+                        showDeleteDemoConfirmDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = Color.White),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Delete Demo Apps")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { showDeleteDemoConfirmDialog = false },
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Cancel", color = TextSecondary)
+                }
+            }
+        )
     }
 }
 

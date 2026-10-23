@@ -465,72 +465,114 @@ fun AppDetailScreen(
                     }
                 }
             } else {
-                // Sleek fallback preview cards with app branding
+                // High-fidelity realistic phone screen previews with authentic UI elements
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 20.dp),
                     horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    val previewCards = listOf(
-                        "Overview" to "Core application interface & fluid controls",
-                        "High Speed" to "Ultra-fast response with real package runtime",
-                        "Security" to "Verified sandbox package authentication"
+                    val mockScreens = listOf(
+                        Triple("Home & Feed", "Verified engine runtime", listOf(Color(0xFF1E293B), Color(0xFF0F172A))),
+                        Triple("Performance", "Ultra-fast response & low latency", listOf(Color(0xFF0F172A), Color(0xFF1E1B4B))),
+                        Triple("Security", "Sandboxed architecture & audit pass", listOf(Color(0xFF1E1B4B), Color(0xFF020617)))
                     )
-                    items(previewCards) { (title, subtitle) ->
+                    items(mockScreens) { (screenTitle, screenDesc, gradient) ->
                         Card(
-                            shape = RoundedCornerShape(18.dp),
-                            colors = CardDefaults.cardColors(containerColor = SurfaceSecondary),
+                            shape = RoundedCornerShape(20.dp),
                             border = BorderStroke(1.dp, BorderLight),
                             modifier = Modifier
                                 .width(200.dp)
-                                .height(320.dp)
+                                .height(340.dp)
+                                .testTag("mock_screenshot_card")
                         ) {
-                            Column(
+                            Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .padding(18.dp),
-                                verticalArrangement = Arrangement.SpaceBetween
+                                    .background(androidx.compose.ui.graphics.Brush.verticalGradient(gradient))
+                                    .padding(14.dp)
                             ) {
-                                Column {
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = Color.Black.copy(alpha = 0.08f),
-                                        modifier = Modifier.size(36.dp)
+                                Column(
+                                    modifier = Modifier.fillMaxSize(),
+                                    verticalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    // Status bar
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Text(
-                                                text = app.name.take(2).uppercase(),
-                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                                color = Color.Black
-                                            )
+                                        Text(text = "9:41", fontSize = 10.sp, color = Color.White.copy(alpha = 0.8f), fontWeight = FontWeight.Bold)
+                                        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                            Box(modifier = Modifier.size(6.dp).background(Color.White.copy(alpha = 0.8f), CircleShape))
+                                            Box(modifier = Modifier.size(6.dp).background(Color.White.copy(alpha = 0.8f), CircleShape))
                                         }
                                     }
-                                    Spacer(modifier = Modifier.height(14.dp))
-                                    Text(
-                                        text = title,
-                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = TextPrimary
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = subtitle,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = TextSecondary,
-                                        lineHeight = 18.sp
-                                    )
-                                }
 
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = Color.Black.copy(alpha = 0.05f),
-                                    modifier = Modifier.fillMaxWidth().height(110.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
+                                    // App Interface Content Mockup
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        if (app.iconPath.isNotBlank()) {
+                                            AppIconImage(
+                                                iconPath = app.iconPath,
+                                                appName = app.name,
+                                                size = 48.dp,
+                                                shape = RoundedCornerShape(12.dp)
+                                            )
+                                        } else {
+                                            Surface(
+                                                shape = RoundedCornerShape(12.dp),
+                                                color = Color.White.copy(alpha = 0.15f),
+                                                modifier = Modifier.size(48.dp)
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Text(
+                                                        text = app.name.take(2).uppercase(),
+                                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                                        color = Color.White
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(10.dp))
                                         Text(
-                                            text = "Screenshot Preview",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = TextTertiary
+                                            text = screenTitle,
+                                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                            color = Color.White
                                         )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = screenDesc,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color.White.copy(alpha = 0.7f),
+                                            lineHeight = 14.sp
+                                        )
+
+                                        Spacer(modifier = Modifier.height(14.dp))
+
+                                        // Mock UI card inside device
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = Color.White.copy(alpha = 0.1f),
+                                            modifier = Modifier.fillMaxWidth().height(60.dp)
+                                        ) {
+                                            Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.Center) {
+                                                Box(modifier = Modifier.fillMaxWidth(0.7f).height(6.dp).background(Color.White.copy(alpha = 0.4f), RoundedCornerShape(3.dp)))
+                                                Spacer(modifier = Modifier.height(6.dp))
+                                                Box(modifier = Modifier.fillMaxWidth(0.4f).height(6.dp).background(Color.White.copy(alpha = 0.25f), RoundedCornerShape(3.dp)))
+                                            }
+                                        }
                                     }
+
+                                    // Home bar
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.CenterHorizontally)
+                                            .width(42.dp)
+                                            .height(3.dp)
+                                            .background(Color.White.copy(alpha = 0.6f), RoundedCornerShape(2.dp))
+                                    )
                                 }
                             }
                         }
