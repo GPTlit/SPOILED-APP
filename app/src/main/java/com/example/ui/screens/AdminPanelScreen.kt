@@ -1,5 +1,8 @@
 package com.example.ui.screens
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,7 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Article
+import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Shield
@@ -55,6 +58,10 @@ import com.example.data.models.AppItem
 import com.example.data.models.FeaturedBannerConfig
 import com.example.data.models.NewsItem
 import com.example.ui.components.AppIconImage
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import com.example.ui.components.motionEntrance
+import com.example.ui.components.pressBounce
 import com.example.ui.theme.AppleBlue
 import com.example.ui.theme.BorderLight
 import com.example.ui.theme.SurfaceLight
@@ -186,7 +193,7 @@ fun AdminPanelScreen(
                                 .height(44.dp)
                                 .testTag("admin_upload_news_button")
                         ) {
-                            Icon(imageVector = Icons.Default.Article, contentDescription = null, modifier = Modifier.size(15.dp), tint = Color.Black)
+                            Icon(imageVector = Icons.AutoMirrored.Filled.Article, contentDescription = null, modifier = Modifier.size(15.dp), tint = Color.Black)
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(text = "Post News", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = Color.Black)
                         }
@@ -260,7 +267,8 @@ fun AdminPanelScreen(
             }
         }
 
-        items(apps, key = { it.id }) { app ->
+        itemsIndexed(apps, key = { _, it -> it.id }) { index, app ->
+            val interactionSource = remember { MutableInteractionSource() }
             Card(
                 shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(containerColor = SurfaceLight),
@@ -268,7 +276,12 @@ fun AdminPanelScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 4.dp)
-                    .clickable { onAppClick(app.slug) }
+                    .motionEntrance(index = index, delayPerIndexMs = 25)
+                    .pressBounce(interactionSource = interactionSource)
+                    .clickable(
+                        interactionSource = interactionSource,
+                        indication = null
+                    ) { onAppClick(app.slug) }
             ) {
                 Row(
                     modifier = Modifier
@@ -361,7 +374,8 @@ fun AdminPanelScreen(
             }
         }
 
-        items(newsList, key = { it.id }) { news ->
+        itemsIndexed(newsList, key = { _, it -> it.id }) { index, news ->
+            val interactionSource = remember { MutableInteractionSource() }
             Card(
                 shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(containerColor = SurfaceLight),
@@ -369,6 +383,8 @@ fun AdminPanelScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 4.dp)
+                    .motionEntrance(index = index, delayPerIndexMs = 25)
+                    .pressBounce(interactionSource = interactionSource)
             ) {
                 Row(
                     modifier = Modifier
@@ -411,8 +427,17 @@ fun AdminPanelScreen(
         var bannerTagline by remember { mutableStateOf(featuredBanner.tagline) }
         var bannerImageUrl by remember { mutableStateOf(featuredBanner.imageUrl) }
 
+        val bannerPickerLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.GetContent()
+        ) { uri: Uri? ->
+            if (uri != null) {
+                bannerImageUrl = uri.toString()
+            }
+        }
+
         AlertDialog(
             onDismissRequest = { showBannerDialog = false },
+            modifier = Modifier.motionEntrance(0),
             title = {
                 Text(
                     text = "Edit Featured Ecosystem Banner",
@@ -422,7 +447,7 @@ fun AdminPanelScreen(
             text = {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        text = "Customize the top featured card on the store homepage. You can change the title, tagline, and background artwork image URL.",
+                        text = "Customize the top hero banner on the store homepage. Admin can change the picture, headline, tagline, or pick an image directly from device storage.",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary
                     )
@@ -448,11 +473,36 @@ fun AdminPanelScreen(
                     OutlinedTextField(
                         value = bannerImageUrl,
                         onValueChange = { bannerImageUrl = it },
-                        label = { Text("Artwork Image URL (optional)") },
-                        placeholder = { Text("https://... or leave empty for default 3D phone") },
+                        label = { Text("Artwork Image URL / Path") },
+                        placeholder = { Text("https://... or content://... or leave empty for 3D phone") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { bannerPickerLauncher.launch("image/*") },
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Pick Image", fontSize = 12.sp)
+                        }
+
+                        if (bannerImageUrl.isNotBlank()) {
+                            TextButton(
+                                onClick = { bannerImageUrl = "" },
+                                modifier = Modifier.weight(0.8f)
+                            ) {
+                                Text("Reset Art", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
                 }
             },
             confirmButton = {

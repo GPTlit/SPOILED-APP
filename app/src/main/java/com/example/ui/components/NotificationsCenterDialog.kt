@@ -31,9 +31,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.models.StoreNotification
+import com.example.ui.components.motionEntrance
 import com.example.ui.theme.BorderLight
 import com.example.ui.theme.SurfaceLight
 import com.example.ui.theme.SurfaceSecondary
@@ -51,6 +53,7 @@ fun NotificationsCenterDialog(
         onDismissRequest = onDismiss,
         containerColor = SurfaceLight,
         shape = RoundedCornerShape(22.dp),
+        modifier = Modifier.motionEntrance(0, offsetY = 16.dp, initialScale = 0.92f).testTag("notifications_center_dialog"),
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),

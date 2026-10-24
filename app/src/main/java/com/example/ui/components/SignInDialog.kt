@@ -47,6 +47,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import com.example.ui.components.motionEntrance
+import com.example.ui.components.pressBounce
 import com.example.R
 import com.example.ui.theme.BorderLight
 import com.example.ui.theme.SurfaceLight
@@ -65,11 +68,13 @@ fun SignInDialog(
     var passwordInput by remember { mutableStateOf("") }
     var usernameInput by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
+    val googleInteraction = remember { MutableInteractionSource() }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = SurfaceLight,
         shape = RoundedCornerShape(22.dp),
+        modifier = Modifier.motionEntrance(0, offsetY = 16.dp, initialScale = 0.92f).testTag("sign_in_dialog"),
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -112,7 +117,8 @@ fun SignInDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(50.dp)
-                        .clickable { onLaunchRealGoogleSignIn() }
+                        .pressBounce(googleInteraction, scaleDown = 0.96f)
+                        .clickable(interactionSource = googleInteraction, indication = null) { onLaunchRealGoogleSignIn() }
                         .testTag("signin_google_button")
                 ) {
                     Row(

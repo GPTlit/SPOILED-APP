@@ -90,8 +90,9 @@ data class FeaturedBannerConfig(
 
 enum class StoreNavigationTab(val label: String) {
     HOME("Today"),
-    APPS("Apps"),
     GAMES("Games"),
+    APPS("Apps"),
+    ARCADE("Arcade"),
     SEARCH("Search"),
     PROFILE("Profile"),
     NEWS("News")

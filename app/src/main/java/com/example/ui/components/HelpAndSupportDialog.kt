@@ -13,8 +13,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.AlertDialog
@@ -33,8 +33,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ui.components.motionEntrance
 import com.example.ui.theme.BorderLight
 import com.example.ui.theme.SurfaceLight
 import com.example.ui.theme.SurfaceSecondary
@@ -50,9 +52,10 @@ fun HelpAndSupportDialog(
         onDismissRequest = onDismiss,
         containerColor = SurfaceLight,
         shape = RoundedCornerShape(22.dp),
+        modifier = Modifier.motionEntrance(0, offsetY = 16.dp, initialScale = 0.92f).testTag("help_support_dialog"),
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.HelpOutline, contentDescription = null, tint = Color.Black)
+                Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = null, tint = Color.Black)
                 Spacer(modifier = Modifier.size(8.dp))
                 Column {
                     Text(
@@ -155,6 +158,7 @@ fun AboutSpoiledStoreDialog(
         onDismissRequest = onDismiss,
         containerColor = SurfaceLight,
         shape = RoundedCornerShape(22.dp),
+        modifier = Modifier.motionEntrance(0, offsetY = 16.dp, initialScale = 0.92f).testTag("about_dialog"),
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = Color.Black)

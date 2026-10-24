@@ -55,9 +55,11 @@ import com.example.ui.components.HelpAndSupportDialog
 import com.example.ui.components.NotificationsCenterDialog
 import com.example.ui.components.SettingsDialog
 import com.example.ui.components.SignInDialog
+import com.example.ui.components.AppStoreBottomBar
 import com.example.ui.screens.AdminPanelScreen
 import com.example.ui.screens.AppDetailScreen
 import com.example.ui.screens.AppsScreen
+import com.example.ui.screens.ArcadeScreen
 import com.example.ui.screens.GamesScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.NewsScreen
@@ -80,7 +82,10 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-            SpoiledStoreTheme(isHighContrastLight = uiState.isHighContrastLightMode) {
+            SpoiledStoreTheme(
+                isHighContrastLight = uiState.isHighContrastLightMode,
+                themePreference = uiState.themePreference
+            ) {
                 SpoiledStoreApp(viewModel = viewModel)
             }
         }
@@ -129,49 +134,10 @@ fun SpoiledStoreApp(
                 uiState.showRedeemScreen
 
             if (!isSubPageActive) {
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                    tonalElevation = 0.dp,
-                    modifier = Modifier.testTag("spoiled_bottom_navigation")
-                ) {
-                    val tabs = listOf(
-                        StoreNavigationTab.HOME to (Icons.Filled.Home to Icons.Outlined.Home),
-                        StoreNavigationTab.APPS to (Icons.Filled.GridView to Icons.Outlined.GridView),
-                        StoreNavigationTab.GAMES to (Icons.Filled.SportsEsports to Icons.Outlined.SportsEsports),
-                        StoreNavigationTab.SEARCH to (Icons.Filled.Search to Icons.Outlined.Search),
-                        StoreNavigationTab.PROFILE to (Icons.Filled.Person to Icons.Outlined.Person)
-                    )
-
-                    tabs.forEach { (tab, icons) ->
-                        val selected = uiState.currentTab == tab
-                        NavigationBarItem(
-                            selected = selected,
-                            onClick = { viewModel.selectTab(tab) },
-                            icon = {
-                                Icon(
-                                    imageVector = if (selected) icons.first else icons.second,
-                                    contentDescription = tab.label,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            },
-                            label = {
-                                Text(
-                                    text = tab.label,
-                                    fontSize = 10.sp
-                                )
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.primary,
-                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                indicatorColor = Color.Transparent,
-                                unselectedIconColor = TextTertiary,
-                                unselectedTextColor = TextTertiary
-                            ),
-                            modifier = Modifier.testTag("tab_${tab.name.lowercase()}")
-                        )
-                    }
-                }
+                AppStoreBottomBar(
+                    currentTab = uiState.currentTab,
+                    onTabSelected = { viewModel.selectTab(it) }
+                )
             }
         }
     ) { innerPadding ->
@@ -298,16 +264,12 @@ fun SpoiledStoreApp(
                         when (currentTab) {
                             StoreNavigationTab.HOME -> {
                                 HomeScreen(
-                                    apps = searchResults,
+                                    apps = allApps,
                                     newsList = newsList,
                                     isAdmin = userProfile.isAdmin,
                                     featuredBanner = featuredBanner,
-                                    isHighContrast = uiState.isHighContrastLightMode,
-                                    onToggleTheme = { viewModel.toggleThemeMode() },
-                                    searchQuery = uiState.searchQuery,
-                                    onSearchQueryChange = { viewModel.setSearchQuery(it) },
-                                    selectedCategory = uiState.selectedCategory,
-                                    onCategorySelect = { viewModel.setCategory(it) },
+                                    userAvatarInitial = userProfile.displayName.take(1).uppercase().ifBlank { "AS" },
+                                    onProfileClick = { viewModel.toggleSettingsDialog(true) },
                                     installedAppIds = installedAppIds,
                                     downloadProgress = downloadProgress,
                                     onAppClick = { viewModel.openAppDetail(it) },
@@ -328,7 +290,9 @@ fun SpoiledStoreApp(
                                     installedAppIds = installedAppIds,
                                     downloadProgress = downloadProgress,
                                     onAppClick = { viewModel.openAppDetail(it) },
-                                    onInstallClick = { viewModel.installApp(it) }
+                                    onInstallClick = { viewModel.installApp(it) },
+                                    userAvatarInitial = userProfile.displayName.take(1).uppercase().ifBlank { "AS" },
+                                    onProfileClick = { viewModel.toggleSettingsDialog(true) }
                                 )
                             }
 
@@ -340,7 +304,21 @@ fun SpoiledStoreApp(
                                     installedAppIds = installedAppIds,
                                     downloadProgress = downloadProgress,
                                     onAppClick = { viewModel.openAppDetail(it) },
-                                    onInstallClick = { viewModel.installApp(it) }
+                                    onInstallClick = { viewModel.installApp(it) },
+                                    userAvatarInitial = userProfile.displayName.take(1).uppercase().ifBlank { "AS" },
+                                    onProfileClick = { viewModel.toggleSettingsDialog(true) }
+                                )
+                            }
+
+                            StoreNavigationTab.ARCADE -> {
+                                ArcadeScreen(
+                                    apps = allApps,
+                                    installedAppIds = installedAppIds,
+                                    downloadProgress = downloadProgress,
+                                    onAppClick = { viewModel.openAppDetail(it) },
+                                    onInstallClick = { viewModel.installApp(it) },
+                                    userAvatarInitial = userProfile.displayName.take(1).uppercase().ifBlank { "AS" },
+                                    onProfileClick = { viewModel.toggleSettingsDialog(true) }
                                 )
                             }
 
@@ -352,7 +330,8 @@ fun SpoiledStoreApp(
                                     installedAppIds = installedAppIds,
                                     downloadProgress = downloadProgress,
                                     onAppClick = { viewModel.openAppDetail(it) },
-                                    onInstallClick = { viewModel.installApp(it) }
+                                    onInstallClick = { viewModel.installApp(it) },
+                                    userAvatarInitial = userProfile.displayName.take(1).uppercase().ifBlank { "AS" }
                                 )
                             }
 
@@ -402,8 +381,8 @@ fun SpoiledStoreApp(
     if (uiState.showSettingsDialog) {
         SettingsDialog(
             currentAdminEmail = viewModel.adminEmail,
-            isHighContrast = uiState.isHighContrastLightMode,
-            onToggleTheme = { viewModel.toggleThemeMode() },
+            themePreference = uiState.themePreference,
+            onSetThemePreference = { viewModel.setThemePreference(it) },
             onDismiss = { viewModel.toggleSettingsDialog(false) },
             onSaveAdminEmail = { viewModel.showSnackbar("Admin access verified for: $it") }
         )

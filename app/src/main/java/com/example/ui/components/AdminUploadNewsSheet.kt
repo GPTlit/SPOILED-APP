@@ -47,6 +47,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.example.ui.theme.AppleBlue
 import com.example.ui.theme.SurfaceLight
 import com.example.ui.theme.TextPrimary
+import com.example.ui.components.AnimatedModalCard
 import com.example.ui.theme.TextSecondary
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,7 +68,8 @@ fun AdminUploadNewsSheet(
         onDismissRequest = { /* No-op: full page, dismissed only via back arrow */ },
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
-        Scaffold(
+        AnimatedModalCard(modifier = Modifier.fillMaxSize()) {
+            Scaffold(
             topBar = {
                 TopAppBar(
                     title = {
@@ -187,4 +189,5 @@ fun AdminUploadNewsSheet(
             }
         }
     }
+}
 }

@@ -10,6 +10,7 @@ import com.example.R
 import com.example.auth.GoogleAuthManager
 import com.example.data.models.AppItem
 import com.example.data.models.CommentItem
+import com.example.data.models.FeaturedBannerConfig
 import com.example.data.models.NewsItem
 import com.example.data.models.StoreNotification
 import com.example.data.models.UserProfile
@@ -429,7 +430,13 @@ class StoreRepository(
 
     fun signOut() {
         googleAuthManager.signOut()
-        sessionPrefs.edit().clear().apply()
+        sessionPrefs.edit()
+            .putBoolean("is_signed_in", false)
+            .putString("email", "")
+            .putString("username", "")
+            .putString("auth_provider", "")
+            .putBoolean("is_admin", false)
+            .apply()
         val profile = UserProfile(isSignedIn = false, email = "", username = "", isAdmin = false)
         _userProfile.value = profile
         saveUserSession(profile)
@@ -811,7 +818,14 @@ class StoreRepository(
 
     fun deleteApp(appId: String) {
         val targetApp = _apps.value.find { it.id == appId }
-        _apps.update { list -> list.filterNot { it.id == appId } }
+        val deletedIds = sessionPrefs.getStringSet("deleted_app_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
+        deletedIds.add(appId)
+        if (targetApp != null) {
+            deletedIds.add(targetApp.slug)
+        }
+        sessionPrefs.edit().putStringSet("deleted_app_ids", deletedIds).apply()
+
+        _apps.update { list -> list.filterNot { it.id == appId || it.slug == appId } }
         saveAppsToDisk(_apps.value)
         scope.launch {
             try {
@@ -1034,13 +1048,22 @@ class StoreRepository(
     }
 
     private fun loadAppsFromDisk(): List<AppItem> {
+        val demoCleared = sessionPrefs.getBoolean("demo_apps_cleared", false)
+        val deletedIds = sessionPrefs.getStringSet("deleted_app_ids", emptySet()) ?: emptySet()
         val file = File(context.filesDir, APPS_FILE)
-        if (!file.exists()) return getInitialOnlineStoreCatalog()
+        if (!file.exists()) {
+            return if (demoCleared) emptyList() else getInitialOnlineStoreCatalog().filterNot { deletedIds.contains(it.id) || deletedIds.contains(it.slug) }
+        }
         return try {
             val array = JSONArray(file.readText())
             val list = mutableListOf<AppItem>()
             for (i in 0 until array.length()) {
                 val obj = array.getJSONObject(i)
+                val appId = obj.optString("id")
+                val appSlug = obj.optString("slug")
+                if (deletedIds.contains(appId) || deletedIds.contains(appSlug)) {
+                    continue
+                }
                 val shots = mutableListOf<String>()
                 val shotsArray = obj.optJSONArray("screenshots")
                 if (shotsArray != null) {
@@ -1048,8 +1071,8 @@ class StoreRepository(
                 }
                 list.add(
                     AppItem(
-                        id = obj.optString("id"),
-                        slug = obj.optString("slug"),
+                        id = appId,
+                        slug = appSlug,
                         name = obj.optString("name"),
                         category = obj.optString("category"),
                         developer = obj.optString("developer"),
@@ -1079,9 +1102,20 @@ class StoreRepository(
                     )
                 )
             }
-            if (list.isEmpty()) getInitialOnlineStoreCatalog() else list
+            if (list.isEmpty()) {
+                if (demoCleared) emptyList() else getInitialOnlineStoreCatalog().filterNot { deletedIds.contains(it.id) || deletedIds.contains(it.slug) }
+            } else {
+                val existingIds = list.map { it.id }.toSet()
+                val missingInitials = getInitialOnlineStoreCatalog().filterNot {
+                    existingIds.contains(it.id) || deletedIds.contains(it.id) || deletedIds.contains(it.slug)
+                }
+                if (missingInitials.isNotEmpty() && !demoCleared) {
+                    list.addAll(missingInitials)
+                }
+                list
+            }
         } catch (_: Exception) {
-            getInitialOnlineStoreCatalog()
+            if (demoCleared) emptyList() else getInitialOnlineStoreCatalog().filterNot { deletedIds.contains(it.id) || deletedIds.contains(it.slug) }
         }
     }
 
@@ -1366,7 +1400,8 @@ class StoreRepository(
     }
 
     fun deleteDemoCatalogApps() {
-        _apps.update { list -> list.filter { it.isUploadedByAdmin } }
+        sessionPrefs.edit().putBoolean("demo_apps_cleared", true).apply()
+        _apps.update { list -> list.filter { it.isUploadedByAdmin && !it.id.startsWith("app-") } }
         saveAppsToDisk(_apps.value)
     }
 
@@ -1546,6 +1581,94 @@ class StoreRepository(
                 speedScore = "100/100",
                 securityStatus = "Verified Native Runtime",
                 cloudApkUrl = "https://get.videolan.org/vlc-android/3.5.4/VLC-Android-3.5.4-arm64-v8a.apk"
+            ),
+            AppItem(
+                id = "game-mario-kart-tour",
+                slug = "mario-kart-tour",
+                name = "Mario Kart Tour",
+                category = "Racing",
+                developer = "Nintendo Co., Ltd.",
+                rating = 4.7f,
+                reviewsCount = 912000,
+                downloadsCount = 125000000,
+                sizeBytes = 142L * 1024 * 1024,
+                sizeFormatted = "142 MB",
+                version = "2.4.1",
+                description = "Mario and friends race around the world in courses inspired by real-world cities in addition to classic Mario Kart courses! Put the pedal to the metal in exciting multiplayer races with friends.",
+                tagline = "Race around the world!",
+                iconPath = "https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=500&q=80",
+                apkFilePath = "https://buildbot.libretro.com/stable/1.18.0/android/RetroArch_ra32.apk",
+                screenshots = listOf(
+                    "https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=800&q=80",
+                    "https://images.unsplash.com/photo-1511512578047-dfb367046420?w=800&q=80"
+                ),
+                bundleId = "com.nintendo.zaka",
+                price = 0.0,
+                isTopGame = true,
+                isFeatured = true,
+                isNewNoteworthy = true,
+                overview = "Official Nintendo racing title optimized for high performance Android devices.",
+                speedScore = "99/100",
+                securityStatus = "Nintendo Verified",
+                cloudApkUrl = "https://buildbot.libretro.com/stable/1.18.0/android/RetroArch_ra32.apk"
+            ),
+            AppItem(
+                id = "app-lightright",
+                slug = "lightright",
+                name = "LightRight",
+                category = "Photo & Video",
+                developer = "LightRight Studio",
+                rating = 4.8f,
+                reviewsCount = 23000,
+                downloadsCount = 540000,
+                sizeBytes = 42L * 1024 * 1024,
+                sizeFormatted = "42 MB",
+                version = "3.2.0",
+                description = "LightRight gives photographers the capability to book natural lighting conditions. Hone your photography skills and capture stunning photos under any sun, wind, or air condition.",
+                tagline = "Photo filters for all lighting",
+                iconPath = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+                apkFilePath = "https://get.videolan.org/vlc-android/3.5.4/VLC-Android-3.5.4-arm64-v8a.apk",
+                screenshots = listOf(
+                    "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&q=80",
+                    "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&q=80"
+                ),
+                bundleId = "com.lightright.app",
+                price = 0.0,
+                isTopApp = true,
+                isFeatured = true,
+                overview = "Lighting prediction engine with real-time solar tracking and color balancing.",
+                speedScore = "98/100",
+                securityStatus = "Sandboxed Engine",
+                cloudApkUrl = "https://get.videolan.org/vlc-android/3.5.4/VLC-Android-3.5.4-arm64-v8a.apk"
+            ),
+            AppItem(
+                id = "app-rookie-cam",
+                slug = "rookie-cam",
+                name = "Rookie Cam™",
+                category = "Photo & Video",
+                developer = "JellyBus Inc.",
+                rating = 4.9f,
+                reviewsCount = 3800,
+                downloadsCount = 210000,
+                sizeBytes = 55L * 1024 * 1024,
+                sizeFormatted = "55 MB",
+                version = "4.0.2",
+                description = "Rookie Cam™ is the filter camera photo editor that empowers those who wish to go beyond basic photo editing. Featuring live filter camera, beauty camera, and professional photo editing.",
+                tagline = "Photo & Video filter camera",
+                iconPath = "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=500&q=80",
+                apkFilePath = "https://ftp.mozilla.org/pub/fenix/releases/124.2.0/android/fenix-124.2.0-android-arm64-v8a/fenix-124.2.0.multi.android-arm64-v8a.apk",
+                screenshots = listOf(
+                    "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80",
+                    "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=800&q=80"
+                ),
+                bundleId = "com.jellybus.rookiecam",
+                price = 0.0,
+                isTopApp = true,
+                isNewNoteworthy = true,
+                overview = "Advanced multi-exposure blending and live color lookup tables for crisp photos.",
+                speedScore = "99/100",
+                securityStatus = "Sandboxed & Audited",
+                cloudApkUrl = "https://ftp.mozilla.org/pub/fenix/releases/124.2.0/android/fenix-124.2.0-android-arm64-v8a/fenix-124.2.0.multi.android-arm64-v8a.apk"
             )
         )
     }

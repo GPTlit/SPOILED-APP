@@ -41,12 +41,22 @@ import com.example.data.models.StoreCategories
 import com.example.ui.components.AppActionPill
 import com.example.ui.components.AppIconImage
 import com.example.ui.components.LiquidGlassSearchBar
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.remember
+import com.example.ui.components.motionEntrance
+import com.example.ui.components.pressBounce
 import com.example.ui.theme.BorderLight
 import com.example.ui.theme.SurfaceLight
 import com.example.ui.theme.SurfaceSecondary
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.TextTertiary
+
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.Box
+import com.example.ui.theme.AppleBlue
 
 @Composable
 fun AppsScreen(
@@ -59,6 +69,8 @@ fun AppsScreen(
     downloadProgress: Map<String, Float>,
     onAppClick: (String) -> Unit,
     onInstallClick: (String) -> Unit,
+    userAvatarInitial: String = "AS",
+    onProfileClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val categories = StoreCategories.APP_CATEGORIES
@@ -79,14 +91,43 @@ fun AppsScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 6.dp)
             ) {
-                Text(
-                    text = "Apps",
-                    style = MaterialTheme.typography.headlineMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = (-0.6).sp
-                    ),
-                    color = TextPrimary
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Apps",
+                        style = MaterialTheme.typography.headlineLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = (-0.8).sp,
+                            fontSize = 34.sp
+                        ),
+                        color = TextPrimary
+                    )
+
+                    Surface(
+                        shape = CircleShape,
+                        color = AppleBlue.copy(alpha = 0.12f),
+                        border = BorderStroke(1.5.dp, AppleBlue.copy(alpha = 0.3f)),
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .pressBounce(remember { MutableInteractionSource() })
+                            .clickable { onProfileClick() }
+                            .testTag("apps_profile_avatar_button")
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = userAvatarInitial,
+                                style = MaterialTheme.typography.titleSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = AppleBlue
+                                )
+                            )
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -160,14 +201,16 @@ fun AppsScreen(
                 }
             }
         } else {
-            items(filteredApps, key = { it.id }) { app ->
+            itemsIndexed(filteredApps, key = { _, it -> it.id }) { index, app ->
                 AppRowItem(
                     app = app,
                     isInstalled = installedAppIds.contains(app.id),
                     downloadProgress = downloadProgress[app.id],
                     onAppClick = { onAppClick(app.slug) },
                     onInstallClick = { onInstallClick(app.id) },
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
+                    modifier = Modifier
+                        .motionEntrance(index, delayPerIndexMs = 28)
+                        .padding(horizontal = 20.dp, vertical = 4.dp)
                 )
             }
         }
@@ -183,13 +226,15 @@ private fun AppRowItem(
     onInstallClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceLight),
         border = BorderStroke(1.dp, BorderLight),
         modifier = modifier
             .fillMaxWidth()
-            .clickable { onAppClick() }
+            .pressBounce(interactionSource, scaleDown = 0.98f)
+            .clickable(interactionSource = interactionSource, indication = null) { onAppClick() }
             .testTag("app_row_${app.slug}")
     ) {
         Row(

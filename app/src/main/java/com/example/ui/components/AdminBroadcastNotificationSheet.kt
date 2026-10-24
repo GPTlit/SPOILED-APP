@@ -46,6 +46,8 @@ import androidx.compose.ui.window.DialogProperties
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 
+import com.example.ui.components.AnimatedModalCard
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminBroadcastNotificationSheet(
@@ -61,7 +63,8 @@ fun AdminBroadcastNotificationSheet(
         onDismissRequest = { /* No-op: full page, dismissed only via back arrow */ },
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
-        Scaffold(
+        AnimatedModalCard(modifier = Modifier.fillMaxSize()) {
+            Scaffold(
             topBar = {
                 TopAppBar(
                     title = {
@@ -154,4 +157,5 @@ fun AdminBroadcastNotificationSheet(
             }
         }
     }
+}
 }

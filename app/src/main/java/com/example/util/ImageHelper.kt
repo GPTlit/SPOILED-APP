@@ -47,8 +47,8 @@ object ImageHelper {
             }
         }
 
-        // 3. Android Content Uris
-        if (str.startsWith("content://", ignoreCase = true)) {
+        // 3. Android Content and Resource Uris
+        if (str.startsWith("content://", ignoreCase = true) || str.startsWith("android.resource://", ignoreCase = true)) {
             return try {
                 Uri.parse(str)
             } catch (_: Exception) {

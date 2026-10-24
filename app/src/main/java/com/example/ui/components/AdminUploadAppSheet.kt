@@ -264,7 +264,8 @@ fun AdminUploadAppSheet(
         onDismissRequest = { /* No-op: full page */ },
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
-        Scaffold(
+        AnimatedModalCard(modifier = Modifier.fillMaxSize()) {
+            Scaffold(
             topBar = {
                 TopAppBar(
                     title = {
@@ -1110,6 +1111,7 @@ fun AdminUploadAppSheet(
     }
         }
     }
+}
 }
 }
 

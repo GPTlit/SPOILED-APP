@@ -55,11 +55,19 @@ private val DarkColorScheme = darkColorScheme(
 @Composable
 fun SpoiledStoreTheme(
     isHighContrastLight: Boolean = false,
+    themePreference: String = "dark",
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (isHighContrastLight) HighContrastLightColorScheme else DarkColorScheme
+    val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val isLight = when (themePreference) {
+        "light" -> true
+        "dark" -> false
+        "system" -> !isSystemDark
+        else -> isHighContrastLight
+    }
+    val colorScheme = if (isLight) HighContrastLightColorScheme else DarkColorScheme
 
-    CompositionLocalProvider(LocalHighContrastMode provides isHighContrastLight) {
+    CompositionLocalProvider(LocalHighContrastMode provides isLight) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = Typography,

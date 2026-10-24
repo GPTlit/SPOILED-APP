@@ -190,16 +190,22 @@ fun LiquidGlassSearchBar(
 // ----------------------------------------------------
 @Composable
 fun AppIconImage(
-    iconUrl: String,
-    fallbackText: String,
-    accentColor: Long,
+    iconUrl: String = "",
+    fallbackText: String = "",
+    accentColor: Long = 0xFF6366F1,
     modifier: Modifier = Modifier,
     size: Dp = 68.dp,
-    cornerRadius: Dp = 16.dp
+    cornerRadius: Dp = 16.dp,
+    iconPath: String = "",
+    appName: String = "",
+    shape: androidx.compose.ui.graphics.Shape? = null
 ) {
-    val imageModel = com.example.util.ImageHelper.buildImageModel(iconUrl)
+    val effectiveUrl = iconPath.ifBlank { iconUrl }
+    val effectiveText = fallbackText.ifBlank { appName.take(2).uppercase().ifBlank { "SS" } }
+    val effectiveShape = shape ?: RoundedCornerShape(cornerRadius)
+    val imageModel = com.example.util.ImageHelper.buildImageModel(effectiveUrl)
     Surface(
-        shape = RoundedCornerShape(cornerRadius),
+        shape = effectiveShape,
         color = Color(accentColor).copy(alpha = 0.12f),
         border = androidx.compose.foundation.BorderStroke(0.5.dp, BorderLight),
         shadowElevation = 1.dp,
@@ -213,11 +219,11 @@ fun AppIconImage(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .size(size)
-                        .clip(RoundedCornerShape(cornerRadius))
+                        .clip(effectiveShape)
                 )
             } else {
                 Text(
-                    text = fallbackText,
+                    text = effectiveText,
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
                         color = Color(accentColor)
@@ -238,6 +244,7 @@ fun AppActionPill(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val interactionSource = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     when {
         downloadProgress != null -> {
             val progressAnim by animateFloatAsState(targetValue = downloadProgress, label = "p")
@@ -247,7 +254,8 @@ fun AppActionPill(
                 modifier = modifier
                     .height(28.dp)
                     .width(62.dp)
-                    .clickable { onClick() }
+                    .pressBounce(interactionSource, scaleDown = 0.94f)
+                    .clickable(interactionSource = interactionSource, indication = null) { onClick() }
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(
@@ -266,7 +274,8 @@ fun AppActionPill(
                 modifier = modifier
                     .height(28.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .clickable { onClick() }
+                    .pressBounce(interactionSource, scaleDown = 0.94f)
+                    .clickable(interactionSource = interactionSource, indication = null) { onClick() }
             ) {
                 Box(
                     modifier = Modifier.padding(horizontal = 14.dp),
@@ -290,7 +299,8 @@ fun AppActionPill(
                 modifier = modifier
                     .height(28.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .clickable { onClick() }
+                    .pressBounce(interactionSource, scaleDown = 0.94f)
+                    .clickable(interactionSource = interactionSource, indication = null) { onClick() }
             ) {
                 Box(
                     modifier = Modifier.padding(horizontal = 14.dp),
@@ -322,10 +332,12 @@ fun CompactAppItem(
     onInstallClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val interactionSource = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Column(
         modifier = modifier
             .width(80.dp)
-            .clickable { onAppClick() }
+            .pressBounce(interactionSource, scaleDown = 0.95f)
+            .clickable(interactionSource = interactionSource, indication = null) { onAppClick() }
             .testTag("compact_app_${app.slug}"),
         horizontalAlignment = Alignment.Start
     ) {

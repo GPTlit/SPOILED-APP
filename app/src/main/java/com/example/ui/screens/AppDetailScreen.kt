@@ -31,12 +31,21 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.ZoomIn
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import com.example.ui.components.motionEntrance
+import com.example.ui.components.pressBounce
+import com.example.ui.components.liquidShimmer
+import com.example.ui.components.pulseGlow
+import com.example.ui.components.AnimatedModalCard
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -61,6 +70,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -118,7 +128,7 @@ fun AppDetailScreen(
             .testTag("app_detail_screen"),
         contentPadding = PaddingValues(bottom = 90.dp)
     ) {
-        // 1. Navigation Top Bar
+        // 1. Navigation Top Bar (matching user reference photo with < Games / < Apps back label)
         item {
             Row(
                 modifier = Modifier
@@ -127,15 +137,32 @@ fun AppDetailScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onBackClick) {
+                val backCategoryName = if (app.category.contains("Game", ignoreCase = true)) "Games" else "Apps"
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onBackClick() }
+                        .padding(horizontal = 6.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
-                        tint = Color.Black
+                        tint = AppleBlue,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = backCategoryName,
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            fontWeight = FontWeight.Medium,
+                            color = AppleBlue,
+                            fontSize = 17.sp
+                        )
                     )
                 }
 
-                Row {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onWishlistClick) {
                         Icon(
                             imageVector = if (isWishlisted) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
@@ -157,7 +184,7 @@ fun AppDetailScreen(
                         Icon(
                             imageVector = Icons.Default.Share,
                             contentDescription = "Share",
-                            tint = Color.Black
+                            tint = AppleBlue
                         )
                     }
                 }
@@ -169,6 +196,7 @@ fun AppDetailScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .motionEntrance(0, delayPerIndexMs = 25)
                     .padding(horizontal = 20.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.Top
             ) {
@@ -255,7 +283,7 @@ fun AppDetailScreen(
             }
         }
 
-        // 3. Stats Strip (Rating, Category, Real File Size, Version)
+        // 3. Stats Strip (Matching User Reference Image 2: Ratings, Age Rating, Chart, Developer)
         item {
             Spacer(modifier = Modifier.height(14.dp))
             HorizontalDivider(color = BorderLight, modifier = Modifier.padding(horizontal = 20.dp))
@@ -264,6 +292,7 @@ fun AppDetailScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .motionEntrance(1, delayPerIndexMs = 30)
                     .padding(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
@@ -271,22 +300,25 @@ fun AppDetailScreen(
                 AppStatItem(
                     label = "${formatCount(app.reviewsCount)} RATINGS",
                     value = "${app.rating}",
-                    hasStar = true
+                    hasStarRow = true
                 )
                 AppStatDivider()
                 AppStatItem(
-                    label = "CATEGORY",
-                    value = app.category.take(12)
+                    label = "AGE RATING",
+                    value = "4+",
+                    subtext = "Years Old"
                 )
                 AppStatDivider()
                 AppStatItem(
-                    label = "SIZE",
-                    value = app.sizeFormatted
+                    label = "CHART",
+                    value = "#7",
+                    subtext = app.category.take(8)
                 )
                 AppStatDivider()
                 AppStatItem(
-                    label = "VERSION",
-                    value = "v${app.version}"
+                    label = "DEVELOPER",
+                    value = app.developer.take(9),
+                    icon = Icons.Default.AccountCircle
                 )
             }
 
@@ -403,6 +435,245 @@ fun AppDetailScreen(
             }
         }
 
+        // 4b. IN-APP EVENT (Matching Reference Image 4)
+        item {
+            var eventReminderSet by remember { mutableStateOf(false) }
+            val eventCardInteraction = remember { MutableInteractionSource() }
+
+            Spacer(modifier = Modifier.height(18.dp))
+            Column(
+                modifier = Modifier
+                    .padding(horizontal = 20.dp)
+                    .motionEntrance(2, delayPerIndexMs = 30)
+            ) {
+                Text(
+                    text = "Events",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = (-0.4).sp,
+                        fontSize = 22.sp
+                    ),
+                    color = TextPrimary
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "TODAY 12:00 PM",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp,
+                        fontSize = 11.sp
+                    ),
+                    color = AppleBlue
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceSecondary),
+                    border = BorderStroke(0.5.dp, BorderLight),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .pressBounce(eventCardInteraction, scaleDown = 0.98f)
+                        .testTag("app_event_card")
+                ) {
+                    Column {
+                        // Event Banner with gradient, event info, and bell reminder button
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(170.dp)
+                                .liquidShimmer(durationMs = 3600)
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(Color(0xFF1E293B), Color(0xFF0F172A), Color(0xFF334155))
+                                    )
+                                )
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                // Top row: Notification Bell on top right
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = Color.Black.copy(alpha = 0.55f),
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .clickable { eventReminderSet = !eventReminderSet }
+                                            .pulseGlow(minScale = 0.95f, maxScale = 1.05f)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = if (eventReminderSet) Icons.Default.NotificationsActive else Icons.Default.Notifications,
+                                                contentDescription = "Event Notification Reminder",
+                                                tint = if (eventReminderSet) AppleBlue else Color.White,
+                                                modifier = Modifier.size(19.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Column {
+                                    Text(
+                                        text = "COMPETITION",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            letterSpacing = 1.sp,
+                                            fontSize = 10.sp
+                                        ),
+                                        color = Color.White.copy(alpha = 0.85f)
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "${app.name} Championship Tour",
+                                        style = MaterialTheme.typography.titleLarge.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            letterSpacing = (-0.3).sp,
+                                            fontSize = 20.sp
+                                        ),
+                                        color = Color.White
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "Celebrate seasonal competition and unlock exclusive cloud drops!",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.White.copy(alpha = 0.85f),
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+
+                        // Event docked bottom bar matching Reference Image 4
+                        Surface(
+                            color = SurfaceLight,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    AppIconImage(
+                                        iconPath = app.iconPath,
+                                        appName = app.name,
+                                        size = 40.dp,
+                                        shape = RoundedCornerShape(10.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = app.name,
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = TextPrimary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = app.tagline.ifBlank { "Race around the world!" },
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = TextSecondary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.width(10.dp))
+
+                                AppActionPill(
+                                    isInstalled = isInstalled,
+                                    downloadProgress = downloadProgress,
+                                    onClick = onInstallClick,
+                                    modifier = Modifier.height(30.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4c. WHAT'S NEW (Matching Reference Image 2)
+        item {
+            Spacer(modifier = Modifier.height(20.dp))
+            Column(
+                modifier = Modifier
+                    .padding(horizontal = 20.dp)
+                    .motionEntrance(3, delayPerIndexMs = 30)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "What's New",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = (-0.4).sp,
+                            fontSize = 22.sp
+                        ),
+                        color = TextPrimary
+                    )
+
+                    Text(
+                        text = "Version History",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Normal,
+                            color = AppleBlue
+                        ),
+                        modifier = Modifier
+                            .clickable { /* Version History */ }
+                            .padding(vertical = 4.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Version ${app.version}",
+                        style = MaterialTheme.typography.bodyMedium.copy(color = TextSecondary)
+                    )
+                    Text(
+                        text = "2w ago",
+                        style = MaterialTheme.typography.bodyMedium.copy(color = TextTertiary)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "• Enhanced rendering performance and native touch responsiveness\n• Added support for seasonal in-app event leaderboards\n• Bug fixes, memory optimizations, and stability improvements",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = TextPrimary,
+                        lineHeight = 20.sp
+                    )
+                )
+            }
+        }
+
         // 5. PICTURES FROM INSIDE THE APP (Screenshots Gallery with Zoom & Click-to-Enlarge)
         item {
             Spacer(modifier = Modifier.height(22.dp))
@@ -426,68 +697,42 @@ fun AppDetailScreen(
             }
             Spacer(modifier = Modifier.height(8.dp))
 
-            if (app.screenshots.isNotEmpty()) {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    items(app.screenshots) { screenshotUri ->
-                        Card(
-                            shape = RoundedCornerShape(16.dp),
-                            border = BorderStroke(1.dp, BorderLight),
-                            modifier = Modifier
-                                .width(200.dp)
-                                .height(340.dp)
-                                .clickable { selectedZoomScreenshot = screenshotUri }
-                                .testTag("screenshot_card")
-                        ) {
-                            Box(modifier = Modifier.fillMaxSize()) {
-                                AsyncImage(
-                                    model = com.example.util.ImageHelper.buildImageModel(screenshotUri) ?: screenshotUri,
-                                    contentDescription = "App Interface Screenshot",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                                Surface(
-                                    shape = CircleShape,
-                                    color = Color.Black.copy(alpha = 0.5f),
-                                    modifier = Modifier
-                                        .align(Alignment.BottomEnd)
-                                        .padding(10.dp)
-                                        .size(32.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Default.ZoomIn, contentDescription = "Zoom", tint = Color.White, modifier = Modifier.size(18.dp))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+            val screenGradients = listOf(
+                listOf(Color(0xFF0F172A), Color(0xFF1E293B)),
+                listOf(Color(0xFF1E1B4B), Color(0xFF312E81)),
+                listOf(Color(0xFF064E3B), Color(0xFF065F46))
+            )
+
+            val displayScreenshots: List<String> = if (app.screenshots.isNotEmpty()) {
+                app.screenshots
             } else {
-                // High-fidelity realistic phone screen previews with authentic UI elements
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    val mockScreens = listOf(
-                        Triple("Home & Feed", "Verified engine runtime", listOf(Color(0xFF1E293B), Color(0xFF0F172A))),
-                        Triple("Performance", "Ultra-fast response & low latency", listOf(Color(0xFF0F172A), Color(0xFF1E1B4B))),
-                        Triple("Security", "Sandboxed architecture & audit pass", listOf(Color(0xFF1E1B4B), Color(0xFF020617)))
-                    )
-                    items(mockScreens) { (screenTitle, screenDesc, gradient) ->
-                        Card(
-                            shape = RoundedCornerShape(20.dp),
-                            border = BorderStroke(1.dp, BorderLight),
-                            modifier = Modifier
-                                .width(200.dp)
-                                .height(340.dp)
-                                .testTag("mock_screenshot_card")
-                        ) {
+                listOf("mock://0", "mock://1", "mock://2")
+            }
+
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                items(displayScreenshots.size) { index ->
+                    val shotUri = displayScreenshots[index]
+                    val isMock = shotUri.startsWith("mock://")
+                    val grad = screenGradients[index % screenGradients.size]
+
+                    Card(
+                        shape = RoundedCornerShape(18.dp),
+                        border = BorderStroke(1.dp, BorderLight),
+                        modifier = Modifier
+                            .width(210.dp)
+                            .height(350.dp)
+                            .clickable { selectedZoomScreenshot = shotUri }
+                            .testTag("screenshot_card_$index")
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            // 1. High-Fidelity Rendered Phone Screen (Always visible base and offline fallback)
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .background(androidx.compose.ui.graphics.Brush.verticalGradient(gradient))
+                                    .background(androidx.compose.ui.graphics.Brush.verticalGradient(grad))
                                     .padding(14.dp)
                             ) {
                                 Column(
@@ -500,7 +745,12 @@ fun AppDetailScreen(
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text(text = "9:41", fontSize = 10.sp, color = Color.White.copy(alpha = 0.8f), fontWeight = FontWeight.Bold)
+                                        Text(
+                                            text = "9:41",
+                                            fontSize = 10.sp,
+                                            color = Color.White.copy(alpha = 0.9f),
+                                            fontWeight = FontWeight.Bold
+                                        )
                                         Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                                             Box(modifier = Modifier.size(6.dp).background(Color.White.copy(alpha = 0.8f), CircleShape))
                                             Box(modifier = Modifier.size(6.dp).background(Color.White.copy(alpha = 0.8f), CircleShape))
@@ -512,40 +762,32 @@ fun AppDetailScreen(
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        if (app.iconPath.isNotBlank()) {
-                                            AppIconImage(
-                                                iconPath = app.iconPath,
-                                                appName = app.name,
-                                                size = 48.dp,
-                                                shape = RoundedCornerShape(12.dp)
-                                            )
-                                        } else {
-                                            Surface(
-                                                shape = RoundedCornerShape(12.dp),
-                                                color = Color.White.copy(alpha = 0.15f),
-                                                modifier = Modifier.size(48.dp)
-                                            ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    Text(
-                                                        text = app.name.take(2).uppercase(),
-                                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                                        color = Color.White
-                                                    )
-                                                }
-                                            }
-                                        }
+                                        AppIconImage(
+                                            iconPath = app.iconPath,
+                                            appName = app.name,
+                                            size = 52.dp,
+                                            shape = RoundedCornerShape(14.dp)
+                                        )
 
                                         Spacer(modifier = Modifier.height(10.dp))
                                         Text(
-                                            text = screenTitle,
+                                            text = when (index) {
+                                                0 -> "Home & Overview"
+                                                1 -> "Live Interface"
+                                                else -> "Specifications"
+                                            },
                                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                             color = Color.White
                                         )
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Text(
-                                            text = screenDesc,
+                                            text = when (index) {
+                                                0 -> "Verified runtime & instant access"
+                                                1 -> "Fast performance & low latency"
+                                                else -> "Sandboxed & security audited"
+                                            },
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = Color.White.copy(alpha = 0.7f),
+                                            color = Color.White.copy(alpha = 0.75f),
                                             lineHeight = 14.sp
                                         )
 
@@ -553,14 +795,20 @@ fun AppDetailScreen(
 
                                         // Mock UI card inside device
                                         Surface(
-                                            shape = RoundedCornerShape(10.dp),
-                                            color = Color.White.copy(alpha = 0.1f),
-                                            modifier = Modifier.fillMaxWidth().height(60.dp)
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = Color.White.copy(alpha = 0.14f),
+                                            modifier = Modifier.fillMaxWidth().height(80.dp)
                                         ) {
-                                            Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.Center) {
-                                                Box(modifier = Modifier.fillMaxWidth(0.7f).height(6.dp).background(Color.White.copy(alpha = 0.4f), RoundedCornerShape(3.dp)))
+                                            Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.Center) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Box(modifier = Modifier.size(16.dp).background(Color.White.copy(alpha = 0.8f), CircleShape))
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Box(modifier = Modifier.fillMaxWidth(0.7f).height(6.dp).background(Color.White.copy(alpha = 0.7f), RoundedCornerShape(3.dp)))
+                                                }
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                                Box(modifier = Modifier.fillMaxWidth(0.9f).height(5.dp).background(Color.White.copy(alpha = 0.4f), RoundedCornerShape(3.dp)))
                                                 Spacer(modifier = Modifier.height(6.dp))
-                                                Box(modifier = Modifier.fillMaxWidth(0.4f).height(6.dp).background(Color.White.copy(alpha = 0.25f), RoundedCornerShape(3.dp)))
+                                                Box(modifier = Modifier.fillMaxWidth(0.5f).height(5.dp).background(Color.White.copy(alpha = 0.3f), RoundedCornerShape(3.dp)))
                                             }
                                         }
                                     }
@@ -569,10 +817,35 @@ fun AppDetailScreen(
                                     Box(
                                         modifier = Modifier
                                             .align(Alignment.CenterHorizontally)
-                                            .width(42.dp)
+                                            .width(46.dp)
                                             .height(3.dp)
-                                            .background(Color.White.copy(alpha = 0.6f), RoundedCornerShape(2.dp))
+                                            .background(Color.White.copy(alpha = 0.7f), RoundedCornerShape(2.dp))
                                     )
+                                }
+                            }
+
+                            // 2. Real Image (if valid, loaded on top)
+                            if (!isMock && shotUri.isNotBlank()) {
+                                val model = com.example.util.ImageHelper.buildImageModel(shotUri) ?: shotUri
+                                AsyncImage(
+                                    model = model,
+                                    contentDescription = "App Screenshot",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+
+                            // Zoom overlay icon
+                            Surface(
+                                shape = CircleShape,
+                                color = Color.Black.copy(alpha = 0.5f),
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .padding(10.dp)
+                                    .size(32.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.ZoomIn, contentDescription = "Zoom", tint = Color.White, modifier = Modifier.size(18.dp))
                                 }
                             }
                         }
@@ -892,7 +1165,10 @@ fun AppDetailScreen(
 private fun AppStatItem(
     label: String,
     value: String,
-    hasStar: Boolean = false
+    subtext: String? = null,
+    hasStar: Boolean = false,
+    hasStarRow: Boolean = false,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
@@ -906,6 +1182,15 @@ private fun AppStatItem(
         )
         Spacer(modifier = Modifier.height(3.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = TextSecondary,
+                    modifier = Modifier.size(15.dp)
+                )
+                Spacer(modifier = Modifier.width(3.dp))
+            }
             Text(
                 text = value,
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
@@ -920,6 +1205,26 @@ private fun AppStatItem(
                     modifier = Modifier.size(13.dp)
                 )
             }
+        }
+        if (hasStarRow) {
+            Spacer(modifier = Modifier.height(2.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                repeat(5) {
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = null,
+                        tint = TextSecondary,
+                        modifier = Modifier.size(9.dp)
+                    )
+                }
+            }
+        } else if (subtext != null) {
+            Spacer(modifier = Modifier.height(1.dp))
+            Text(
+                text = subtext,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                color = TextTertiary
+            )
         }
     }
 }
